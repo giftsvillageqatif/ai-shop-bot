@@ -1,5 +1,4 @@
 import express from "express";
-import OpenAI from "openai";
 import cors from "cors";
 import xlsx from "xlsx";
 import fs from "fs";
@@ -7,11 +6,6 @@ import fs from "fs";
 const app = express();
 app.use(express.json());
 app.use(cors());
-
-// 🔐 OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
 
 // 🛍 المنتجات
 let products = [];
@@ -32,9 +26,94 @@ function loadExcel() {
     const sheet = file.Sheets[file.SheetNames[0]];
     const data = xlsx.utils.sheet_to_json(sheet);
 
-    products = data.map(function(p) {
-      return {
-        title: p.name || "",
+    products = data.map(p => ({
+      title: p.name || "",
+      image: p.image || "",
+      url: p.url || "",
+      price: Number(p.price || 0),
+      tags: (p.tags || "").toString().toLowerCase()
+    }));
+
+    console.log("✅ Products loaded:", products.length);
+
+  } catch (err) {
+    console.log("❌ Excel error:", err.message);
+  }
+}
+
+// تشغيل عند البداية
+loadExcel();
+
+// 🧠 API التوصيات (مع نظام الأسئلة الجديد)
+app.post("/recommend", async (req, res) => {
+
+  try {
+
+    const answers = req.body || {};
+
+    // نجمع كل إجابات المستخدم في نص واحد
+    const text = Object.values(answers).join(" ").toLowerCase();
+
+    if (!text) {
+      return res.json({
+        reply: "ياسمين تحتاج بعض المعلومات",
+        products: []
+      });
+    }
+
+    // 🧠 Ranking بسيط مثل أمازون
+    let scored = products.map(p => {
+
+      let score = 0;
+
+      if (text.includes("ولد") && p.tags.includes("اولاد")) score += 10;
+      if (text.includes("بنت") && p.tags.includes("بنات")) score += 10;
+      if (text.includes("مولود") && p.tags.includes("اطفال")) score += 5;
+
+      if (text.includes("عيد") && p.tags.includes("عيد")) score += 10;
+      if (text.includes("عيد ميلاد") && p.tags.includes("عيد")) score += 10;
+
+      if (text.includes("100") && p.price < 100) score += 10;
+      if (text.includes("200") && p.price >= 100 && p.price <= 300) score += 8;
+      if (text.includes("300") && p.tags.includes("فاخر")) score += 10;
+
+      return { ...p, score };
+
+    });
+
+    // ترتيب النتائج
+    scored.sort((a, b) => b.score - a.score);
+
+    const top = scored.slice(0, 3).map(p => ({
+      title: p.title,
+      image: p.image,
+      url: p.url
+    }));
+
+    res.json({
+      reply: "اخترت لك أفضل المنتجات بناءً على إجاباتك 👇",
+      products: top
+    });
+
+  } catch (err) {
+
+    console.log("❌ SERVER ERROR:", err);
+
+    res.status(500).json({
+      reply: "ياسمين لديها خلل تقني",
+      products: []
+    });
+
+  }
+
+});
+
+// 🚀 تشغيل السيرفر
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log("🚀 Server running on port " + PORT);
+});        title: p.name || "",
         image: p.image || "",
         url: p.url || "",
         price: Number(p.price || 0),
@@ -120,7 +199,7 @@ app.post("/recommend", async (req, res) => {
     console.log("❌ SERVER ERROR:", err);
 
     res.status(500).json({
-      reply: "حدث خطأ في السيرفر",
+      reply: "ياسمين لديها خلل تقني",
       products: []
     });
 
