@@ -1,6 +1,7 @@
 import express from "express";
 import OpenAI from "openai";
 import cors from "cors";
+import xlsx from "xlsx";
 
 const app = express();
 app.use(express.json());
