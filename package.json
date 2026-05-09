@@ -1,5 +1,5 @@
 {
-  "name": "ai-shop",
+  "name": "yasmin-ai-store",
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
@@ -7,9 +7,9 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "openai": "^4.0.0",
     "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "openai": "^4.104.0",
     "xlsx": "^0.18.5"
   }
 }
