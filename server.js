@@ -8,25 +8,17 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// 🔐 OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// 🛍 المنتجات
 let products = [];
 
-// 📊 تحميل Excel
+
+// 📦 تحميل Excel
 function loadExcel() {
 
-  const path = "./products.xlsx";
-
-  if (!fs.existsSync(path)) {
-    console.log("❌ products.xlsx not found");
-    return;
-  }
-
-  const file = xlsx.readFile(path);
+  const file = xlsx.readFile("./products.xlsx");
   const sheet = file.Sheets[file.SheetNames[0]];
   const data = xlsx.utils.sheet_to_json(sheet);
 
@@ -36,13 +28,7 @@ function loadExcel() {
     image: p.image || "",
     url: p.url || "",
     price: Number(p.price || 0),
-    tags: (p.tags || "")
-      .toString()
-      .toLowerCase()
-      .split(",")
-      .map(t => t.trim()),
-    clicks: 0,
-    views: 0
+    embedding: null
   }));
 
   console.log("✅ Products loaded:", products.length);
@@ -51,8 +37,58 @@ function loadExcel() {
 loadExcel();
 
 
-// 🌸 AI "ياسمين"
-async function yasminAI(text) {
+// 🧠 Embedding function
+async function embed(text) {
+
+  const res = await openai.embeddings.create({
+    model: "text-embedding-3-small",
+    input: text
+  });
+
+  return res.data[0].embedding;
+}
+
+
+// 🧠 تجهيز embeddings لكل المنتجات
+async function buildEmbeddings() {
+
+  for (var i = 0; i < products.length; i++) {
+
+    var p = products[i];
+
+    var text = p.title;
+
+    p.embedding = await embed(text);
+  }
+
+  console.log("✅ Embeddings ready");
+}
+
+buildEmbeddings();
+
+
+// 📊 cosine similarity
+function cosine(a, b) {
+
+  var dot = 0;
+  var magA = 0;
+  var magB = 0;
+
+  for (var i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    magA += a[i] * a[i];
+    magB += b[i] * b[i];
+  }
+
+  magA = Math.sqrt(magA);
+  magB = Math.sqrt(magB);
+
+  return dot / (magA * magB);
+}
+
+
+// 🌸 ياسمين (فهم النية فقط)
+async function yasmin(text) {
 
   try {
 
@@ -62,15 +98,10 @@ async function yasminAI(text) {
         {
           role: "system",
           content: `
-أنتِ "ياسمين" 🌸 موظفة متجر ذكية.
-
-ارجعي JSON فقط:
+حلل الطلب إلى JSON فقط:
 
 {
-  "category": "ولد | فتاة | مولود | غير محدد",
-  "intent": "هدية | استخدام شخصي | غير محدد",
-  "mood": "كيوت | فخم | رياضي | عادي",
-  "keywords": ["..."]
+  "intent": "هدية | شراء | غير محدد"
 }
 `
         },
@@ -82,91 +113,63 @@ async function yasminAI(text) {
 
   } catch (e) {
 
-    return {
-      category: "غير محدد",
-      intent: "غير محدد",
-      mood: "غير محدد",
-      keywords: []
-    };
+    return { intent: "غير محدد" };
 
   }
 
 }
 
 
-// 🧠 Recommendation Engine
+// 🚀 MAIN RECOMMENDATION ENGINE
 app.post("/recommend", async (req, res) => {
 
   try {
 
-    const text = (req.body.message || "").toLowerCase();
+    var text = (req.body.message || "");
 
     if (!text) {
       return res.json({
-        reply: "🌸 اكتب طلبك وأنا أساعدك أختار الأفضل لك",
+        reply: "كيف اساعدك ؟ 🌸",
         products: []
       });
     }
 
-    const parsed = await yasminAI(text);
+    // 🧠 1. فهم النية
+    var parsed = await yasmin(text);
 
-    console.log("🌸 Yasmin AI:", parsed);
+    // 🧠 2. تحويل الطلب إلى vector
+    var queryVector = await embed(text);
 
-    let scored = products.map(p => {
+    // 🧠 3. Semantic ranking
+    var scored = products.map(function (p) {
 
-      let score = 0;
-      let reasons = [];
+      var score = cosine(queryVector, p.embedding || []);
 
-      const tags = p.tags || [];
-
-      // 🎯 category
-      if (parsed.category === "ولد" && tags.includes("ولد")) score += 70;
-      if (parsed.category === "فتاة" && tags.includes("فتاة")) score += 70;
-      if (parsed.category === "مولود" && tags.includes("مولود")) score += 70;
-
-      // 🎁 intent
-      if (parsed.intent === "هدية" && tags.includes("هدية")) score += 30;
-
-      // 🎨 mood
-      if (parsed.mood === "كيوت" && tags.includes("وردي")) score += 25;
-      if (parsed.mood === "فخم" && tags.includes("فاخر")) score += 25;
-      if (parsed.mood === "رياضي" && tags.includes("رياضة")) score += 25;
-
-      // 🔍 keywords
-      (parsed.keywords || []).forEach(k => {
-        if (tags.includes(k.toLowerCase())) score += 35;
-      });
-
-      // 🔥 popularity
-      score += (p.clicks || 0) * 4;
-      score += (p.views || 0) * 1;
+      // 🎯 boost بسيط للنية
+      if (parsed.intent === "هدية") {
+        score += 0.05;
+      }
 
       return {
         id: p.id,
         title: p.title,
         image: p.image,
         url: p.url,
-        price: p.price,
-        score,
-        reasons
+        score: score
       };
 
     });
 
-    scored.sort((a, b) => b.score - a.score);
+    // 🔥 ترتيب
+    scored.sort(function (a, b) {
+      return b.score - a.score;
+    });
 
-    scored = scored.filter(p => p.score > 0);
-
-    if (scored.length === 0) {
-      scored = products.slice(0, 3);
-    }
-
-    const top = scored.slice(0, 3);
+    var top = scored.slice(0, 3);
 
     res.json({
-      reply: "🌸 ياسمين اختارت لك أفضل المنتجات بعناية:",
-      products: top,
-      ai: parsed
+      reply: "🌸 ياسمين فهمت طلبك واختارت لك الأفضل:",
+      products: top
     });
 
   } catch (err) {
@@ -183,29 +186,9 @@ app.post("/recommend", async (req, res) => {
 });
 
 
-// 👀 view tracking
-app.post("/view", (req, res) => {
-
-  const p = products.find(x => x.id === req.body.id);
-  if (p) p.views++;
-
-  res.json({ ok: true });
-
-});
-
-
-// 👆 click tracking
-app.post("/click", (req, res) => {
-
-  const p = products.find(x => x.id === req.body.id);
-  if (p) p.clicks++;
-
-  res.json({ ok: true });
-
-});
-
-
 // 🚀 تشغيل السيرفر
-app.listen(process.env.PORT || 3000, () => {
-  console.log("🌸 Yasmin AI Store Running...");
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, function () {
+  console.log("🌸 Yasmin AI Semantic Store running on port " + PORT);
 });
