@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import xlsx from "xlsx";
+import fs from "fs";
 import OpenAI from "openai";
 
 const app = express();
@@ -22,82 +23,91 @@ function loadExcel() {
   const sheet = file.Sheets[file.SheetNames[0]];
   const data = xlsx.utils.sheet_to_json(sheet);
 
-  products = data.map((p, i) => ({
-    id: i,
-    title: p.name,
-    image: p.image,
-    url: p.url,
-    tags: (p.tags || "").toLowerCase()
-  }));
+  products = data.map(function (p, i) {
 
-  console.log("Products:", products.length);
+    var tags = (p.tags || "")
+      .toString()
+      .toLowerCase()
+      .split(",")
+      .map(function (t) {
+        return t.trim();
+      });
+
+    return {
+      id: i,
+      title: p.name || "",
+      image: p.image || "",
+      url: p.url || "",
+      price: Number(p.price || 0),
+      tags: tags
+    };
+
+  });
+
+  console.log("✅ Products loaded:", products.length);
 }
 
 loadExcel();
 
 
-// 🧠 AI فهم الطلب
-async function understand(text) {
+// 🧠 فهم بسيط ذكي (بدون تعقيد embeddings وقت التشغيل)
+function detectCategory(text) {
 
-  const res = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content: `
-حلل النص إلى JSON فقط:
+  text = text.toLowerCase();
 
-{
-  "category": "ولد | بنت | مولود | غير",
-  "intent": "هدية | استخدام | غير",
-  "emotion": "فخم | بسيط | عادي"
-}
-`
-      },
-      { role: "user", content: text }
-    ]
-  });
+  if (text.includes("مولود") || text.includes("baby") || text.includes("newborn")) {
+    return "مولود";
+  }
 
-  return JSON.parse(res.choices[0].message.content);
+  if (text.includes("بنت") || text.includes("girl")) {
+    return "بنت";
+  }
+
+  if (text.includes("ولد") || text.includes("boy")) {
+    return "ولد";
+  }
+
+  return null;
 }
 
 
-// 💬 CHAT (ياسمين التفاعلية)
-app.post("/chat", async (req, res) => {
+// 🌸 ياسمين (Sales Funnel Chat)
+app.post("/chat", function (req, res) {
 
-  let id = req.body.sessionId || "guest";
-  let msg = (req.body.message || "");
+  var id = req.body.sessionId || "guest";
+  var msg = (req.body.message || "").toLowerCase();
 
   if (!sessions[id]) {
     sessions[id] = {
       step: 1,
-      data: {}
+      category: null,
+      intent: null,
+      mood: null
     };
   }
 
-  let s = sessions[id];
+  var s = sessions[id];
 
-  let ai = await understand(msg);
+  var detected = detectCategory(msg);
 
-  // حفظ البيانات تدريجيًا
-  if (ai.category !== "غير") s.data.category = ai.category;
-  if (ai.intent !== "غير") s.data.intent = ai.intent;
-  if (ai.emotion !== "غير") s.data.emotion = ai.emotion;
+  if (detected) {
+    s.category = detected;
+  }
 
-  let reply = "";
-  let ready = false;
+  var reply = "";
+  var ready = false;
 
   // 🧠 STEP 1
   if (s.step === 1) {
 
-    if (!s.data.category) {
+    if (!s.category) {
       reply = "🌸 لمين الهدية؟ (ولد / بنت / مولود)";
     } else {
       s.step = 2;
 
-      if (s.data.category === "مولود") reply = "🌸 مبروك 👶 هدية ولا استخدام؟";
-      if (s.data.category === "ولد") reply = "🌸 حلو 👍 مناسبة ولا عادي؟";
-      if (s.data.category === "بنت") reply = "🌸 جميل ✨ مناسبة ولا عادي؟";
+      if (s.category === "مولود") reply = "🌸 مبروك 👶 هدية ولا استخدام؟";
+      if (s.category === "ولد") reply = "🌸 حلو 👍 مناسبة ولا عادي؟";
+      if (s.category === "بنت") reply = "🌸 جميل ✨ مناسبة ولا عادي؟";
     }
 
   }
@@ -105,54 +115,115 @@ app.post("/chat", async (req, res) => {
   // 🧠 STEP 2
   else if (s.step === 2) {
 
+    s.intent = msg;
     s.step = 3;
-    reply = "🌸 تمام 👍 تبغى شيء فخم ولا بسيط؟";
+
+    reply = "🌸 تمام 👍 تبغى شيء بسيط ولا فخم؟";
 
   }
 
   // 🧠 STEP 3
   else if (s.step === 3) {
 
+    s.mood = msg;
     s.step = 4;
     ready = true;
 
-    reply = "🌸 فهمت ذوقك بالكامل، بجيب لك أفضل الخيارات 👇";
+    reply = "🌸 تمام فهمت ذوقك بالكامل، بختار لك أفضل المنتجات 👇";
 
   }
 
   res.json({
-    reply,
-    ready,
-    session: s.data
+    reply: reply,
+    ready: ready,
+    session: s
   });
 
 });
 
 
-// 🛍 RECOMMEND
-app.post("/recommend", (req, res) => {
+// 🛍 التوصية النهائية (فلترة ذكية قوية)
+app.post("/recommend", function (req, res) {
 
-  let s = req.body.session || {};
+  var s = req.body.session || {};
 
-  let filtered = products.filter(p => {
+  var category = s.category;
+  var intent = (s.intent || "").toLowerCase();
+  var mood = (s.mood || "").toLowerCase();
 
-    if (s.category === "مولود") return p.tags.includes("مولود");
-    if (s.category === "ولد") return p.tags.includes("ولد");
-    if (s.category === "بنت") return p.tags.includes("بنت");
+  var filtered = products.filter(function (p) {
+
+    var tags = p.tags || [];
+
+    // 🔒 فلترة صارمة (أهم جزء)
+    if (category === "مولود") {
+      return tags.indexOf("مولود") !== -1;
+    }
+
+    if (category === "ولد") {
+      return tags.indexOf("ولد") !== -1;
+    }
+
+    if (category === "بنت") {
+      return tags.indexOf("بنت") !== -1;
+    }
 
     return true;
 
   });
 
+  var scored = filtered.map(function (p) {
+
+    var score = 0;
+    var tags = p.tags || [];
+
+    // 🎯 intent
+    if (intent.includes("هدية") && tags.indexOf("هدية") !== -1) {
+      score += 30;
+    }
+
+    if (intent.includes("استخدام") && tags.indexOf("استخدام") !== -1) {
+      score += 20;
+    }
+
+    // 🎨 mood
+    if (mood.includes("فخم") && tags.indexOf("فاخر") !== -1) {
+      score += 25;
+    }
+
+    if (mood.includes("بسيط") && tags.indexOf("بسيط") !== -1) {
+      score += 25;
+    }
+
+    if (mood.includes("كيوت") && tags.indexOf("وردي") !== -1) {
+      score += 25;
+    }
+
+    return {
+      id: p.id,
+      title: p.title,
+      image: p.image,
+      url: p.url,
+      score: score
+    };
+
+  });
+
+  scored.sort(function (a, b) {
+    return b.score - a.score;
+  });
+
+  var top = scored.slice(0, 3);
+
   res.json({
-    reply: "🌸 هذه أفضل الخيارات لك:",
-    products: filtered.slice(0, 3)
+    reply: "🌸 هذه أفضل الخيارات المناسبة لك:",
+    products: top
   });
 
 });
 
 
-// 🚀 تشغيل
-app.listen(process.env.PORT || 3000, () => {
-  console.log("AI Store Running...");
+// 🚀 تشغيل السيرفر
+app.listen(process.env.PORT || 3000, function () {
+  console.log("🌸 Yasmin AI Store Running...");
 });
