@@ -13,9 +13,10 @@ const openai = new OpenAI({
 });
 
 let products = [];
+let sessions = {};
 
 
-// 📦 تحميل Excel
+// 📦 تحميل المنتجات من Excel
 function loadExcel() {
 
   const file = xlsx.readFile("./products.xlsx");
@@ -37,7 +38,7 @@ function loadExcel() {
 loadExcel();
 
 
-// 🧠 Embedding function
+// 🧠 Embedding
 async function embed(text) {
 
   const res = await openai.embeddings.create({
@@ -49,16 +50,14 @@ async function embed(text) {
 }
 
 
-// 🧠 تجهيز embeddings لكل المنتجات
+// 🧠 تجهيز embeddings
 async function buildEmbeddings() {
 
   for (var i = 0; i < products.length; i++) {
 
     var p = products[i];
+    p.embedding = await embed(p.title);
 
-    var text = p.title;
-
-    p.embedding = await embed(text);
   }
 
   console.log("✅ Embeddings ready");
@@ -67,7 +66,7 @@ async function buildEmbeddings() {
 buildEmbeddings();
 
 
-// 📊 cosine similarity
+// 📊 similarity
 function cosine(a, b) {
 
   var dot = 0;
@@ -87,108 +86,111 @@ function cosine(a, b) {
 }
 
 
-// 🌸 ياسمين (فهم النية فقط)
-async function yasmin(text) {
+// 🌸 ياسمين (Sales Funnel AI)
+app.post("/chat", function (req, res) {
 
-  try {
+  var id = req.body.sessionId || "guest";
+  var msg = (req.body.message || "").toLowerCase();
 
-    const ai = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `
-حلل الطلب إلى JSON فقط:
-
-{
-  "intent": "هدية | شراء | غير محدد"
-}
-`
-        },
-        { role: "user", content: text }
-      ]
-    });
-
-    return JSON.parse(ai.choices[0].message.content);
-
-  } catch (e) {
-
-    return { intent: "غير محدد" };
-
+  if (!sessions[id]) {
+    sessions[id] = {
+      step: 1,
+      category: null,
+      intent: null,
+      mood: null
+    };
   }
 
-}
+  var s = sessions[id];
+  var reply = "";
+  var ready = false;
 
+  if (s.step === 1) {
 
-// 🚀 MAIN RECOMMENDATION ENGINE
-app.post("/recommend", async (req, res) => {
+    if (msg.indexOf("ولد") !== -1) {
+      s.category = "ولد";
+      s.step = 2;
+      reply = "🌸 تمام، ولد 👍 هل المناسبة هدية ولا استخدام؟";
 
-  try {
+    } else if (msg.indexOf("بنت") !== -1) {
+      s.category = "بنت";
+      s.step = 2;
+      reply = "🌸 حلو ✨ مناسبة ولا عادية؟";
 
-    var text = (req.body.message || "");
+    } else if (msg.indexOf("مولود") !== -1) {
+      s.category = "مولود";
+      s.step = 2;
+      reply = "🌸 مبروك 👶 هدية مولود ولا استخدام؟";
 
-    if (!text) {
-      return res.json({
-        reply: "كيف اساعدك ؟ 🌸",
-        products: []
-      });
+    } else {
+      reply = "🌸 لمين الهدية؟ (ولد / بنت / مولود)";
     }
 
-    // 🧠 1. فهم النية
-    var parsed = await yasmin(text);
+  }
 
-    // 🧠 2. تحويل الطلب إلى vector
-    var queryVector = await embed(text);
+  else if (s.step === 2) {
 
-    // 🧠 3. Semantic ranking
-    var scored = products.map(function (p) {
+    s.intent = msg;
+    s.step = 3;
 
-      var score = cosine(queryVector, p.embedding || []);
-
-      // 🎯 boost بسيط للنية
-      if (parsed.intent === "هدية") {
-        score += 0.05;
-      }
-
-      return {
-        id: p.id,
-        title: p.title,
-        image: p.image,
-        url: p.url,
-        score: score
-      };
-
-    });
-
-    // 🔥 ترتيب
-    scored.sort(function (a, b) {
-      return b.score - a.score;
-    });
-
-    var top = scored.slice(0, 3);
-
-    res.json({
-      reply: "🌸 ياسمين فهمت طلبك واختارت لك الأفضل:",
-      products: top
-    });
-
-  } catch (err) {
-
-    console.log(err);
-
-    res.status(500).json({
-      reply: "ياسمين لديها خلل تقني",
-      products: []
-    });
+    reply = "🌸 جميل! تبغى شيء بسيط ولا فخم؟";
 
   }
+
+  else if (s.step === 3) {
+
+    s.mood = msg;
+    s.step = 4;
+    ready = true;
+
+    reply = "🌸 تمام فهمت ذوقك، بجيب لك أفضل الخيارات الآن 👇";
+
+  }
+
+  res.json({
+    reply: reply,
+    ready: ready,
+    session: s
+  });
+
+});
+
+
+// 🛍 التوصية النهائية (Semantic AI)
+app.post("/recommend", async function (req, res) {
+
+  var s = req.body.session || {};
+  var text = (s.intent || "") + " " + (s.mood || "");
+
+  var queryVec = await embed(text);
+
+  var filtered = products.map(function (p) {
+
+    var score = cosine(queryVec, p.embedding || []);
+
+    return {
+      id: p.id,
+      title: p.title,
+      image: p.image,
+      url: p.url,
+      score: score
+    };
+
+  });
+
+  filtered.sort(function (a, b) {
+    return b.score - a.score;
+  });
+
+  res.json({
+    reply: "🌸 هذه أفضل الاختيارات لك:",
+    products: filtered.slice(0, 3)
+  });
 
 });
 
 
 // 🚀 تشغيل السيرفر
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, function () {
-  console.log("🌸 Yasmin AI Semantic Store running on port " + PORT);
+app.listen(process.env.PORT || 3000, function () {
+  console.log("🌸 AI Store Running...");
 });
