@@ -2,39 +2,251 @@ import express from "express";
 import cors from "cors";
 import xlsx from "xlsx";
 import fs from "fs";
+import OpenAI from "openai";
 
 const app = express();
-
 app.use(express.json());
 app.use(cors());
+
+// 🔐 OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 // 🛍 المنتجات
 let products = [];
 
-// 📊 تحميل ملف Excel
+// 📊 تحميل Excel
 function loadExcel() {
+
+  const path = "./products.xlsx";
+
+  if (!fs.existsSync(path)) {
+    console.log("❌ products.xlsx not found");
+    return;
+  }
+
+  const file = xlsx.readFile(path);
+  const sheet = file.Sheets[file.SheetNames[0]];
+  const data = xlsx.utils.sheet_to_json(sheet);
+
+  products = data.map((p, i) => ({
+    id: i,
+    title: p.name || "",
+    image: p.image || "",
+    url: p.url || "",
+    price: Number(p.price || 0),
+
+    tags: (p.tags || "")
+      .toString()
+      .toLowerCase()
+      .split(",")
+      .map(t => t.trim()),
+
+    clicks: 0,
+    views: 0
+  }));
+
+  console.log("✅ Products loaded:", products.length);
+}
+
+loadExcel();
+
+
+// 🧠 AI parsing (فهم النية)
+async function analyzeUser(text) {
 
   try {
 
-    const path = "./products.xlsx";
+    const ai = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `
+أنت محرك توصية متجر عالمي مثل Amazon.
 
-    if (!fs.existsSync(path)) {
+حول طلب العميل إلى JSON فقط:
 
-      console.log("❌ products.xlsx not found");
+{
+  "category": "ولد | فتاة | مولود | غير محدد",
+  "intent": "هدية | استخدام شخصي | غير محدد",
+  "mood": "كيوت | فخم | رياضي | عادي",
+  "keywords": ["..."]
+}
+`
+        },
+        {
+          role: "user",
+          content: text
+        }
+      ]
+    });
 
-      return;
+    return JSON.parse(ai.choices[0].message.content);
+
+  } catch (e) {
+
+    return {
+      category: "غير محدد",
+      intent: "غير محدد",
+      mood: "غير محدد",
+      keywords: []
+    };
+
+  }
+
+}
+
+
+// 🧠 Recommendation Engine
+app.post("/recommend", async (req, res) => {
+
+  try {
+
+    const text = (req.body.message || "").toLowerCase();
+
+    if (!text) {
+      return res.json({
+        reply: "اكتب طلبك عشان أساعدك 👌",
+        products: []
+      });
+    }
+
+    // 🧠 1. تحليل AI
+    const parsed = await analyzeUser(text);
+
+    console.log("🧠 AI:", parsed);
+
+    // 🧠 2. scoring engine (Hybrid AI)
+    let scored = products.map(p => {
+
+      let score = 0;
+      let reasons = [];
+
+      const tags = p.tags || [];
+
+      // 🎯 Category filter (أقوى وزن)
+      if (parsed.category === "ولد" && tags.includes("ولد")) {
+        score += 60;
+        reasons.push("مناسب للولد");
+      }
+
+      if (parsed.category === "فتاة" && tags.includes("فتاة")) {
+        score += 60;
+        reasons.push("مناسب للفتاة");
+      }
+
+      if (parsed.category === "مولود" && tags.includes("مولود")) {
+        score += 60;
+        reasons.push("مناسب للمولود");
+      }
+
+      // 🎁 intent
+      if (parsed.intent === "هدية" && tags.includes("هدية")) {
+        score += 25;
+        reasons.push("مناسب كهدية");
+      }
+
+      // 🎨 mood
+      if (parsed.mood === "كيوت" && tags.includes("وردي")) score += 20;
+      if (parsed.mood === "فخم" && tags.includes("فاخر")) score += 20;
+      if (parsed.mood === "رياضي" && tags.includes("رياضة")) score += 20;
+
+      // 🔍 keywords
+      (parsed.keywords || []).forEach(k => {
+        if (tags.includes(k.toLowerCase())) {
+          score += 30;
+          reasons.push("يطابق: " + k);
+        }
+      });
+
+      // 🔥 Popularity boost (Amazon style)
+      score += (p.clicks || 0) * 3;
+      score += (p.views || 0) * 0.5;
+
+      // 💰 slight preference for cheaper products (optional)
+      if (p.price < 100) score += 5;
+
+      return {
+        id: p.id,
+        title: p.title,
+        image: p.image,
+        url: p.url,
+        price: p.price,
+        score,
+        reasons
+      };
+
+    });
+
+    // 🧠 3. sorting
+    scored.sort((a, b) => b.score - a.score);
+
+    // ❌ remove useless
+    scored = scored.filter(p => p.score > 0);
+
+    // 🧠 fallback smart (no AI needed)
+    if (scored.length === 0) {
+
+      scored = products
+        .sort(() => 0.5 - Math.random())
+        .slice(0, 3)
+        .map(p => ({
+          id: p.id,
+          title: p.title,
+          image: p.image,
+          url: p.url,
+          score: 1,
+          reasons: ["اقتراح عام"]
+        }));
 
     }
 
-    const file = xlsx.readFile(path);
+    const top = scored.slice(0, 3);
 
-    const sheet = file.Sheets[file.SheetNames[0]];
+    res.json({
+      reply: "هذه أفضل المنتجات لك بناءً على ذوقك 👇",
+      products: top,
+      ai: parsed
+    });
 
-    const data = xlsx.utils.sheet_to_json(sheet);
+  } catch (err) {
 
-    products = data.map(function (p) {
+    console.log("❌ ERROR:", err);
 
-      return {
+    res.status(500).json({
+      reply: "حدث خطأ في السيرفر",
+      products: []
+    });
+
+  }
+
+});
+
+
+// 📊 click tracking (learning system)
+app.post("/click", (req, res) => {
+
+  const id = req.body.id;
+
+  const product = products.find(p => p.id === id);
+
+  if (product) {
+    product.clicks = (product.clicks || 0) + 1;
+  }
+
+  res.json({ ok: true });
+
+});
+
+
+// 🚀 server start
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log("🚀 Amazon-Level AI Store running on port " + PORT);
+});      return {
 
         title: (p.name || "").toString(),
 
