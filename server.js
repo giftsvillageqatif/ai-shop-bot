@@ -14,6 +14,7 @@ const openai = new OpenAI({
 let products = [];
 let sessions = {};
 
+// 📦 تحميل المنتجات
 function loadExcel() {
   const file = xlsx.readFile("./products.xlsx");
   const sheet = file.Sheets[file.SheetNames[0]];
@@ -25,12 +26,19 @@ function loadExcel() {
     image: p.image || "",
     url: p.url || "",
     price: Number(p.price || 0),
-    tags: (p.tags || "").toLowerCase().split(",").map(t => t.trim())
+    tags: (p.tags || "")
+      .toString()
+      .toLowerCase()
+      .split(",")
+      .map(t => t.trim())
   }));
+
+  console.log("✅ Products loaded:", products.length);
 }
 
 loadExcel();
 
+// 🧠 فهم العميل بالـ AI
 async function understandUser(message, session) {
   const res = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -38,17 +46,21 @@ async function understandUser(message, session) {
       {
         role: "user",
         content: `
-ارجع JSON فقط:
+ارجع JSON فقط بدون شرح:
+
 {
- "category": "",
- "intent": "",
- "mood": "",
- "readyToRecommend": false,
- "reply": ""
+  "category": "مولود | ولد | بنت | غير واضح",
+  "intent": "هدية | استخدام | تصفح | غير واضح",
+  "mood": "فخم | بسيط | كيوت | غير واضح",
+  "readyToRecommend": false,
+  "reply": "رد عربي قصير لطيف"
 }
 
-المحادثة: ${JSON.stringify(session)}
-رسالة: ${message}
+المحادثة السابقة:
+${JSON.stringify(session)}
+
+رسالة العميل:
+${message}
 `
       }
     ],
@@ -59,20 +71,23 @@ async function understandUser(message, session) {
     return JSON.parse(res.choices[0].message.content);
   } catch {
     return {
-      category: "",
-      intent: "",
-      mood: "",
+      category: "غير واضح",
+      intent: "غير واضح",
+      mood: "غير واضح",
       readyToRecommend: false,
       reply: "وضح أكثر 🌸"
     };
   }
 }
 
+// 💬 chat endpoint
 app.post("/chat", async (req, res) => {
   const id = req.body.sessionId || "guest";
   const msg = req.body.message || "";
 
-  if (!sessions[id]) sessions[id] = {};
+  if (!sessions[id]) {
+    sessions[id] = {};
+  }
 
   const session = sessions[id];
 
@@ -89,6 +104,7 @@ app.post("/chat", async (req, res) => {
   });
 });
 
+// 🛍️ التوصيات
 app.post("/recommend", (req, res) => {
   const s = req.body.session || {};
 
@@ -101,140 +117,24 @@ app.post("/recommend", (req, res) => {
     if (s.mood === "بسيط" && p.tags.includes("بسيط")) score += 25;
     if (s.mood === "كيوت" && p.tags.includes("وردي")) score += 25;
 
-    return { ...p, score };
+    return {
+      id: p.id,
+      title: p.title,
+      image: p.image,
+      url: p.url,
+      score
+    };
   });
 
   result.sort((a, b) => b.score - a.score);
 
   res.json({
+    reply: "🌸 هذه أفضل الخيارات لك:",
     products: result.slice(0, 3)
   });
 });
 
-app.listen(process.env.PORT || 3000);
-loadExcel();
-
-
-// 🧠 AI فهم المحادثة
-async function understandUser(message, session) {
-
-  const prompt = `
-أنت مساعد مبيعات ذكي لمتجر هدايا.
-
-حلل رسالة العميل وارجع JSON فقط بدون شرح.
-
-المطلوب:
-- category: (مولود / ولد / بنت / غير معروف)
-- intent: ماذا يريد (هدية / استخدام / غير واضح)
-- mood: (فخم / بسيط / كيوت / غير معروف)
-- readyToRecommend: true أو false
-- reply: رد عربي قصير لطيف يكمل المحادثة
-
-بيانات سابقة:
-${JSON.stringify(session)}
-
-رسالة العميل:
-${message}
-
-ارجع JSON فقط بهذا الشكل:
-{
-  "category": "",
-  "intent": "",
-  "mood": "",
-  "readyToRecommend": false,
-  "reply": ""
-}
-`;
-
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: "You are a strict JSON generator." },
-      { role: "user", content: prompt }
-    ],
-    temperature: 0.3
-  });
-
-  try {
-    return JSON.parse(response.choices[0].message.content);
-  } catch (e) {
-    return {
-      category: "غير معروف",
-      intent: "غير واضح",
-      mood: "غير معروف",
-      readyToRecommend: false,
-      reply: "ممكن توضّح أكثر؟ 🌸"
-    };
-  }
-}
-
-
-// 💬 Chat endpoint
-app.post("/chat", async (req, res) => {
-
-  const id = req.body.sessionId || "guest";
-  const msg = req.body.message || "";
-
-  if (!sessions[id]) {
-    sessions[id] = {};
-  }
-
-  const session = sessions[id];
-
-  const ai = await understandUser(msg, session);
-
-  // تحديث الجلسة
-  session.category = ai.category;
-  session.intent = ai.intent;
-  session.mood = ai.mood;
-
-  res.json({
-    reply: ai.reply,
-    ready: ai.readyToRecommend,
-    session
-  });
-
-});
-
-
-// 🛍 توصية المنتجات (بعد الفهم فقط)
-app.post("/recommend", (req, res) => {
-
-  const session = req.body.session || {};
-
-  let filtered = products.filter(p => {
-
-    if (session.category === "مولود") return p.tags.includes("مولود");
-    if (session.category === "ولد") return p.tags.includes("ولد");
-    if (session.category === "بنت") return p.tags.includes("بنت");
-
-    return true;
-  });
-
-  let scored = filtered.map(p => {
-    let score = 0;
-
-    if (session.intent === "هدية" && p.tags.includes("هدية")) score += 30;
-    if (session.intent === "استخدام" && p.tags.includes("استخدام")) score += 20;
-
-    if (session.mood === "فخم" && p.tags.includes("فاخر")) score += 25;
-    if (session.mood === "بسيط" && p.tags.includes("بسيط")) score += 25;
-    if (session.mood === "كيوت" && p.tags.includes("وردي")) score += 25;
-
-    return { ...p, score };
-  });
-
-  scored.sort((a, b) => b.score - a.score);
-
-  res.json({
-    reply: "🌸 اخترت لك أفضل المنتجات بناءً على ذوقك:",
-    products: scored.slice(0, 3)
-  });
-
-});
-
-
 // 🚀 تشغيل السيرفر
 app.listen(process.env.PORT || 3000, () => {
-  console.log("🌸 AI Store Running...");
+  console.log("🚀 AI Shop Running...");
 });
