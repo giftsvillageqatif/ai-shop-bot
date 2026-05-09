@@ -11,44 +11,43 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// 🛍 منتجات (بدّلها بـ Zid API لاحقًا)
-let products = [
-  {
-    id: 1,
-    title: "بوكس هدية فاخر",
-    image: "https://media.zid.store/sample1.jpg",
-    url: "https://gifts-village.sa/product1",
-    tags: ["فاخر", "زوجة", "عيد", "رومانسي"],
-    score: 0
-  },
-  {
-    id: 2,
-    title: "هدية بسيطة",
-    image: "https://media.zid.store/sample2.jpg",
-    url: "https://gifts-village.sa/product2",
-    tags: ["بسيط", "رخيص", "عام"],
-    score: 0
-  }
-];
+// 🛍 المنتجات من Excel فقط
+let products = [];
+
+// 📊 تحميل Excel
+function loadExcel() {
+
+  const file = xlsx.readFile("./products.xlsx");
+  const sheet = file.Sheets[file.SheetNames[0]];
+  const data = xlsx.utils.sheet_to_json(sheet);
+
+  products = data.map(function(p) {
+    return {
+      title: p.name,
+      image: p.image,
+      url: p.url,
+      price: p.price,
+      tags: (p.tags || "").toString().toLowerCase()
+    };
+  });
+
+  console.log("Products loaded:", products.length);
+}
+
+// تشغيل عند بدء السيرفر
+loadExcel();
 
 // 🧠 AI + Ranking
 app.post("/recommend", async (req, res) => {
 
-  const msg = req.body.message;
+  const msg = req.body.message.toLowerCase();
 
-  // 1. فهم الطلب بالـ AI
   const ai = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
       {
         role: "system",
-        content: `
-أنت نظام توصية مثل أمازون.
-استخرج:
-- المناسبة
-- الميزانية
-- نوع المنتج
-`
+        content: "أنت نظام توصية مثل أمازون. استخرج نية المستخدم."
       },
       {
         role: "user",
@@ -59,34 +58,29 @@ app.post("/recommend", async (req, res) => {
 
   const analysis = ai.choices[0].message.content.toLowerCase();
 
-  // 2. Ranking (ذكاء بسيط يشبه أمازون)
-  let scored = products.map(p => {
+  let scored = products.map(function(p) {
 
     let score = 0;
 
-    for (let i = 0; i < p.tags.length; i++) {
-      if (analysis.indexOf(p.tags[i]) !== -1) {
-        score += 10;
-      }
-    }
+    if (analysis.indexOf("عيد") !== -1 && p.tags.indexOf("عيد") !== -1) score += 10;
+    if (analysis.indexOf("رومانسي") !== -1 && p.tags.indexOf("رومانسي") !== -1) score += 10;
+    if (analysis.indexOf("بسيط") !== -1 && p.tags.indexOf("بسيط") !== -1) score += 10;
 
-    return { ...p, score };
+    return Object.assign({}, p, { score: score });
+
   });
 
-  scored.sort((a, b) => b.score - a.score);
-
-  // 3. أفضل 3 منتجات فقط (مثل أمازون)
-  const top = scored.slice(0, 3).map(p => ({
-    title: p.title,
-    image: p.image,
-    url: p.url
-  }));
+  scored.sort(function(a, b) {
+    return b.score - a.score;
+  });
 
   res.json({
     reply: "تم اختيار أفضل المنتجات لك 👇",
-    products: top
+    products: scored.slice(0, 3)
   });
 
 });
 
-app.listen(3000);
+app.listen(3000, function() {
+  console.log("Server running on port 3000");
+});
