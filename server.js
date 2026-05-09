@@ -49,7 +49,13 @@ app.post("/recommend", async (req, res) => {
 
   try {
 
-    const answers = req.body || {};
+    const answers = {
+  q0: req.body.q0 || "",
+  q1: req.body.q1 || "",
+  q2: req.body.q2 || ""
+};
+
+const text = (answers.q0 + " " + answers.q1 + " " + answers.q2).toLowerCase().trim();
 
     // نجمع كل إجابات المستخدم في نص واحد
     const text = Object.values(answers).join(" ").toLowerCase();
@@ -78,6 +84,10 @@ app.post("/recommend", async (req, res) => {
       if (text.includes("300") && p.tags.includes("فاخر")) score += 10;
 
       return { ...p, score };
+      
+      if (text.includes("كرة") || text.includes("سلة") || text.includes("رياضة")) {
+  if (p.tags.includes("رياضة")) score += 15;
+}
 
     });
 
