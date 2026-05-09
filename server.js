@@ -339,9 +339,7 @@ ${catalog}
 
     });
 
-  }
-  
- catch (err) {
+  } catch (err) {
 
   console.log("❌ FULL ERROR:");
   console.log(err);
