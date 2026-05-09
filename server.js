@@ -85,9 +85,7 @@ const text = (answers.q0 + " " + answers.q1 + " " + answers.q2).toLowerCase().tr
 
       return { ...p, score };
       
-      if (text.includes("كرة") || text.includes("سلة") || text.includes("رياضة")) {
-  if (p.tags.includes("رياضة")) score += 15;
-}
+      
 
     });
 
