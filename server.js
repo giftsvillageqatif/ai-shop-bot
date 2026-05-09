@@ -38,6 +38,7 @@ try {
 
   storeKnowledge = `
 اسم المتجر: قرية الهدايا
+
 المتجر متخصص في:
 الهدايا - الأطفال - المواليد - المناسبات.
 
@@ -48,7 +49,7 @@ try {
 مدى - فيزا - أبل باي.
 
 الاستبدال:
-خلال 7 أيام بشرط عدم الاستخدام.
+خلال 3 أيام بشرط عدم الاستخدام.
 `;
 
 }
@@ -81,8 +82,7 @@ function loadProducts() {
 
   } catch (err) {
 
-    console.log("❌ Excel Error:");
-    console.log(err);
+    console.log("❌ Excel Error:", err);
 
     products = [];
 
@@ -241,11 +241,8 @@ ${catalog}
     // ❌ إذا فشل JSON
     if (!parsed) {
 
-      console.log("❌ JSON ERROR:");
-      console.log(content);
-
       return res.json({
-        reply: "❌ AI JSON ERROR",
+        reply: "🌸 ممكن توضّح لي أكثر؟",
         recommend: false
       });
 
@@ -344,18 +341,11 @@ ${catalog}
 
   } catch (err) {
 
-    console.log("❌ FULL SERVER ERROR:");
-    console.log(err);
+    console.log("❌ SERVER ERROR:", err);
 
     return res.json({
 
-      reply:
-        "❌ " +
-        (
-          err?.error?.message ||
-          err?.message ||
-          "Unknown Error"
-        ),
+      reply: "🌸 ياسمين لديها خلل تقني مؤقت",
 
       recommend: false
 
