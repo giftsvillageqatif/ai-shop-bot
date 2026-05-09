@@ -36,16 +36,23 @@ function loadExcel() {
 
       return {
 
-        title: p.name || "",
-        image: p.image || "",
-        url: p.url || "",
+        title: (p.name || "").toString(),
+
+        image: (p.image || "").toString(),
+
+        url: (p.url || "").toString(),
+
         price: Number(p.price || 0),
 
-        // نحول tags إلى array
         tags: (p.tags || "")
           .toString()
           .toLowerCase()
           .split(",")
+          .map(function (tag) {
+
+            return tag.trim();
+
+          })
 
       };
 
@@ -70,113 +77,173 @@ app.post("/recommend", async (req, res) => {
 
   try {
 
-    const category = (req.body.category || "").toLowerCase();
-    const occasion = (req.body.occasion || "").toLowerCase();
-    const extra = (req.body.extra || "").toLowerCase();
+    const category =
+      (req.body.category || "")
+      .toLowerCase()
+      .trim();
 
-    const text =
-      (category + " " + occasion + " " + extra)
-      .trim()
-      .toLowerCase();
+    const occasion =
+      (req.body.occasion || "")
+      .toLowerCase()
+      .trim();
 
-    console.log("📩 REQUEST:", text);
+    const extra =
+      (req.body.extra || "")
+      .toLowerCase()
+      .trim();
 
-    // لو ما فيه بيانات
-    if (!text) {
+    console.log("📩 REQUEST:", {
+      category,
+      occasion,
+      extra
+    });
+
+    // 🧠 فلترة القسم الأساسي
+    let filtered = products.filter(function (p) {
+
+      const tags = p.tags || [];
+
+      // 👦 ولد
+      if (category.includes("ولد")) {
+
+        return tags.includes("ولد");
+
+      }
+
+      // 👧 فتاة / بنت
+      if (
+        category.includes("فتاة") ||
+        category.includes("بنت")
+      ) {
+
+        return (
+          tags.includes("فتاة") ||
+          tags.includes("بنت")
+        );
+
+      }
+
+      // 👶 مولود
+      if (category.includes("مولود")) {
+
+        return tags.includes("مولود");
+
+      }
+
+      return false;
+
+    });
+
+    // ❌ إذا ما لقى منتجات
+    if (filtered.length === 0) {
 
       return res.json({
 
-        reply: "اكتب طلبك أول",
+        reply: "ما لقيت منتجات مناسبة",
+
         products: []
 
       });
 
     }
 
-    // 🧠 ترتيب المنتجات
-    let scored = products.map(function (p) {
+    // 🧠 حساب السكور
+    let scored = filtered.map(function (p) {
 
       let score = 0;
 
-      // 👦 ولد
-      if (
-        category.includes("ولد") &&
-        p.tags.includes("ولد")
-      ) {
-        score += 30;
-      }
+      const tags = p.tags || [];
 
-      // 👧 فتاة
-      if (
-        category.includes("فتاة") &&
-        p.tags.includes("فتاة")
-      ) {
-        score += 30;
-      }
-
-      // 👶 مولود
-      if (
-        category.includes("مولود") &&
-        p.tags.includes("مولود")
-      ) {
-        score += 30;
-      }
-
-      // 🎁 هدية
+      // 🎁 مناسبة هدية
       if (
         occasion.includes("هدية") &&
-        p.tags.includes("هدية")
+        tags.includes("هدية")
       ) {
-        score += 15;
+
+        score += 50;
+
       }
 
-      // 🏀 رياضة / كرة
-      if (
-        text.includes("كرة") ||
-        text.includes("رياضة") ||
-        text.includes("سلة")
-      ) {
+      // 🧠 الكلمات الإضافية
+      extra.split(" ").forEach(function (word) {
 
-        if (p.tags.includes("رياضة")) {
-          score += 20;
+        word = word.trim();
+
+        if (!word) return;
+
+        // تطابق مباشر مع tags
+        if (tags.includes(word)) {
+
+          score += 40;
+
         }
 
-      }
+        // 🏀 رياضة
+        if (
+          word.includes("كرة") ||
+          word.includes("رياضة") ||
+          word.includes("سلة")
+        ) {
 
-      // 💖 وردي
-      if (
-        text.includes("وردي")
-      ) {
+          if (
+            tags.includes("رياضة") ||
+            tags.includes("كرة")
+          ) {
 
-        if (p.tags.includes("وردي")) {
-          score += 10;
+            score += 30;
+
+          }
+
         }
 
-      }
+        // 🎮 ألعاب
+        if (
+          word.includes("لعبة") ||
+          word.includes("ألعاب")
+        ) {
 
-      // ✨ فاخر
-      if (
-        text.includes("فخم") ||
-        text.includes("فاخر")
-      ) {
+          if (
+            tags.includes("ألعاب") ||
+            tags.includes("لعبة")
+          ) {
 
-        if (p.tags.includes("فاخر")) {
-          score += 15;
+            score += 30;
+
+          }
+
         }
 
-      }
+        // 💖 وردي
+        if (
+          word.includes("وردي")
+        ) {
 
-      // 🎮 ألعاب
-      if (
-        text.includes("لعبة") ||
-        text.includes("ألعاب")
-      ) {
+          if (tags.includes("وردي")) {
 
-        if (p.tags.includes("ألعاب")) {
-          score += 20;
+            score += 20;
+
+          }
+
         }
 
-      }
+        // ✨ فاخر
+        if (
+          word.includes("فاخر") ||
+          word.includes("فخم")
+        ) {
+
+          if (
+            tags.includes("فاخر") ||
+            tags.includes("فخم")
+          ) {
+
+            score += 20;
+
+          }
+
+        }
+
+      });
 
       return {
 
@@ -189,14 +256,34 @@ app.post("/recommend", async (req, res) => {
 
     });
 
-    // ترتيب حسب السكور
+    // ترتيب
     scored.sort(function (a, b) {
 
       return b.score - a.score;
 
     });
 
-    // أفضل 3 منتجات
+    // حذف المنتجات الضعيفة
+    scored = scored.filter(function (p) {
+
+      return p.score > 0;
+
+    });
+
+    // 🧠 fallback عشوائي من نفس القسم
+    if (scored.length === 0) {
+
+      filtered.sort(function () {
+
+        return 0.5 - Math.random();
+
+      });
+
+      scored = filtered;
+
+    }
+
+    // أفضل 3
     const top = scored.slice(0, 3);
 
     res.json({
