@@ -1,47 +1,38 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
 import xlsx from "xlsx";
-import fs from "fs";
 import OpenAI from "openai";
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
+// 🤖 OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+// 📦 المنتجات
 let products = [];
 let sessions = {};
 
-
-// 📦 تحميل المنتجات
 function loadExcel() {
-
   const file = xlsx.readFile("./products.xlsx");
   const sheet = file.Sheets[file.SheetNames[0]];
   const data = xlsx.utils.sheet_to_json(sheet);
 
-  products = data.map(function (p, i) {
-
-    var tags = (p.tags || "")
-      .toString()
-      .toLowerCase()
-      .split(",")
-      .map(function (t) {
-        return t.trim();
-      });
-
+  products = data.map((p, i) => {
     return {
       id: i,
       title: p.name || "",
       image: p.image || "",
       url: p.url || "",
       price: Number(p.price || 0),
-      tags: tags
+      tags: (p.tags || "").toLowerCase().split(",").map(t => t.trim())
     };
-
   });
 
   console.log("✅ Products loaded:", products.length);
@@ -50,180 +41,126 @@ function loadExcel() {
 loadExcel();
 
 
-// 🧠 فهم بسيط ذكي (بدون تعقيد embeddings وقت التشغيل)
-function detectCategory(text) {
+// 🧠 AI فهم المحادثة
+async function understandUser(message, session) {
 
-  text = text.toLowerCase();
+  const prompt = `
+أنت مساعد مبيعات ذكي لمتجر هدايا.
 
-  if (text.includes("مولود") || text.includes("baby") || text.includes("newborn")) {
-    return "مولود";
+حلل رسالة العميل وارجع JSON فقط بدون شرح.
+
+المطلوب:
+- category: (مولود / ولد / بنت / غير معروف)
+- intent: ماذا يريد (هدية / استخدام / غير واضح)
+- mood: (فخم / بسيط / كيوت / غير معروف)
+- readyToRecommend: true أو false
+- reply: رد عربي قصير لطيف يكمل المحادثة
+
+بيانات سابقة:
+${JSON.stringify(session)}
+
+رسالة العميل:
+${message}
+
+ارجع JSON فقط بهذا الشكل:
+{
+  "category": "",
+  "intent": "",
+  "mood": "",
+  "readyToRecommend": false,
+  "reply": ""
+}
+`;
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: "You are a strict JSON generator." },
+      { role: "user", content: prompt }
+    ],
+    temperature: 0.3
+  });
+
+  try {
+    return JSON.parse(response.choices[0].message.content);
+  } catch (e) {
+    return {
+      category: "غير معروف",
+      intent: "غير واضح",
+      mood: "غير معروف",
+      readyToRecommend: false,
+      reply: "ممكن توضّح أكثر؟ 🌸"
+    };
   }
-
-  if (text.includes("بنت") || text.includes("girl")) {
-    return "بنت";
-  }
-
-  if (text.includes("ولد") || text.includes("boy")) {
-    return "ولد";
-  }
-
-  return null;
 }
 
 
-// 🌸 ياسمين (Sales Funnel Chat)
-app.post("/chat", function (req, res) {
+// 💬 Chat endpoint
+app.post("/chat", async (req, res) => {
 
-  var id = req.body.sessionId || "guest";
-  var msg = (req.body.message || "").toLowerCase();
+  const id = req.body.sessionId || "guest";
+  const msg = req.body.message || "";
 
   if (!sessions[id]) {
-    sessions[id] = {
-      step: 1,
-      category: null,
-      intent: null,
-      mood: null
-    };
+    sessions[id] = {};
   }
 
-  var s = sessions[id];
+  const session = sessions[id];
 
-  var detected = detectCategory(msg);
+  const ai = await understandUser(msg, session);
 
-  if (detected) {
-    s.category = detected;
-  }
-
-  var reply = "";
-  var ready = false;
-
-  // 🧠 STEP 1
-  if (s.step === 1) {
-
-    if (!s.category) {
-      reply = "🌸 لمين الهدية؟ (ولد / بنت / مولود)";
-    } else {
-      s.step = 2;
-
-      if (s.category === "مولود") reply = "🌸 مبروك 👶 هدية ولا استخدام؟";
-      if (s.category === "ولد") reply = "🌸 حلو 👍 مناسبة ولا عادي؟";
-      if (s.category === "بنت") reply = "🌸 جميل ✨ مناسبة ولا عادي؟";
-    }
-
-  }
-
-  // 🧠 STEP 2
-  else if (s.step === 2) {
-
-    s.intent = msg;
-    s.step = 3;
-
-    reply = "🌸 تمام 👍 تبغى شيء بسيط ولا فخم؟";
-
-  }
-
-  // 🧠 STEP 3
-  else if (s.step === 3) {
-
-    s.mood = msg;
-    s.step = 4;
-    ready = true;
-
-    reply = "🌸 تمام فهمت ذوقك بالكامل، بختار لك أفضل المنتجات 👇";
-
-  }
+  // تحديث الجلسة
+  session.category = ai.category;
+  session.intent = ai.intent;
+  session.mood = ai.mood;
 
   res.json({
-    reply: reply,
-    ready: ready,
-    session: s
+    reply: ai.reply,
+    ready: ai.readyToRecommend,
+    session
   });
 
 });
 
 
-// 🛍 التوصية النهائية (فلترة ذكية قوية)
-app.post("/recommend", function (req, res) {
+// 🛍 توصية المنتجات (بعد الفهم فقط)
+app.post("/recommend", (req, res) => {
 
-  var s = req.body.session || {};
+  const session = req.body.session || {};
 
-  var category = s.category;
-  var intent = (s.intent || "").toLowerCase();
-  var mood = (s.mood || "").toLowerCase();
+  let filtered = products.filter(p => {
 
-  var filtered = products.filter(function (p) {
-
-    var tags = p.tags || [];
-
-    // 🔒 فلترة صارمة (أهم جزء)
-    if (category === "مولود") {
-      return tags.indexOf("مولود") !== -1;
-    }
-
-    if (category === "ولد") {
-      return tags.indexOf("ولد") !== -1;
-    }
-
-    if (category === "بنت") {
-      return tags.indexOf("بنت") !== -1;
-    }
+    if (session.category === "مولود") return p.tags.includes("مولود");
+    if (session.category === "ولد") return p.tags.includes("ولد");
+    if (session.category === "بنت") return p.tags.includes("بنت");
 
     return true;
-
   });
 
-  var scored = filtered.map(function (p) {
+  let scored = filtered.map(p => {
+    let score = 0;
 
-    var score = 0;
-    var tags = p.tags || [];
+    if (session.intent === "هدية" && p.tags.includes("هدية")) score += 30;
+    if (session.intent === "استخدام" && p.tags.includes("استخدام")) score += 20;
 
-    // 🎯 intent
-    if (intent.includes("هدية") && tags.indexOf("هدية") !== -1) {
-      score += 30;
-    }
+    if (session.mood === "فخم" && p.tags.includes("فاخر")) score += 25;
+    if (session.mood === "بسيط" && p.tags.includes("بسيط")) score += 25;
+    if (session.mood === "كيوت" && p.tags.includes("وردي")) score += 25;
 
-    if (intent.includes("استخدام") && tags.indexOf("استخدام") !== -1) {
-      score += 20;
-    }
-
-    // 🎨 mood
-    if (mood.includes("فخم") && tags.indexOf("فاخر") !== -1) {
-      score += 25;
-    }
-
-    if (mood.includes("بسيط") && tags.indexOf("بسيط") !== -1) {
-      score += 25;
-    }
-
-    if (mood.includes("كيوت") && tags.indexOf("وردي") !== -1) {
-      score += 25;
-    }
-
-    return {
-      id: p.id,
-      title: p.title,
-      image: p.image,
-      url: p.url,
-      score: score
-    };
-
+    return { ...p, score };
   });
 
-  scored.sort(function (a, b) {
-    return b.score - a.score;
-  });
-
-  var top = scored.slice(0, 3);
+  scored.sort((a, b) => b.score - a.score);
 
   res.json({
-    reply: "🌸 هذه أفضل الخيارات المناسبة لك:",
-    products: top
+    reply: "🌸 اخترت لك أفضل المنتجات بناءً على ذوقك:",
+    products: scored.slice(0, 3)
   });
 
 });
 
 
 // 🚀 تشغيل السيرفر
-app.listen(process.env.PORT || 3000, function () {
-  console.log("🌸 Yasmin AI Store Running...");
+app.listen(process.env.PORT || 3000, () => {
+  console.log("🌸 AI Store Running...");
 });
