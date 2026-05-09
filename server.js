@@ -8,6 +8,7 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+// 🔐 OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
@@ -15,17 +16,15 @@ const openai = new OpenAI({
 // 🛍 المنتجات
 let products = [];
 
-// 👤 بيانات سلوك المستخدمين (TikTok concept)
-const userBehavior = {}; 
-// شكلها:
-// { sessionId: { views: [], clicks: [] } }
-
 // 📊 تحميل Excel
 function loadExcel() {
 
   const path = "./products.xlsx";
 
-  if (!fs.existsSync(path)) return;
+  if (!fs.existsSync(path)) {
+    console.log("❌ products.xlsx not found");
+    return;
+  }
 
   const file = xlsx.readFile(path);
   const sheet = file.Sheets[file.SheetNames[0]];
@@ -37,15 +36,13 @@ function loadExcel() {
     image: p.image || "",
     url: p.url || "",
     price: Number(p.price || 0),
-
     tags: (p.tags || "")
       .toString()
       .toLowerCase()
       .split(",")
       .map(t => t.trim()),
-
-    views: 0,
-    clicks: 0
+    clicks: 0,
+    views: 0
   }));
 
   console.log("✅ Products loaded:", products.length);
@@ -54,8 +51,8 @@ function loadExcel() {
 loadExcel();
 
 
-// 🧠 AI فهم النية (خفيف فقط)
-async function analyze(text) {
+// 🌸 AI "ياسمين"
+async function yasminAI(text) {
 
   try {
 
@@ -65,10 +62,15 @@ async function analyze(text) {
         {
           role: "system",
           content: `
-حول الطلب إلى:
+أنتِ "ياسمين" 🌸 موظفة متجر ذكية.
+
+ارجعي JSON فقط:
+
 {
- "intent": "هدية | شراء | استكشاف | غير محدد",
- "keywords": ["..."]
+  "category": "ولد | فتاة | مولود | غير محدد",
+  "intent": "هدية | استخدام شخصي | غير محدد",
+  "mood": "كيوت | فخم | رياضي | عادي",
+  "keywords": ["..."]
 }
 `
         },
@@ -78,10 +80,12 @@ async function analyze(text) {
 
     return JSON.parse(ai.choices[0].message.content);
 
-  } catch {
+  } catch (e) {
 
     return {
+      category: "غير محدد",
       intent: "غير محدد",
+      mood: "غير محدد",
       keywords: []
     };
 
@@ -90,78 +94,79 @@ async function analyze(text) {
 }
 
 
-// 🧠 TikTok Recommendation Engine
+// 🧠 Recommendation Engine
 app.post("/recommend", async (req, res) => {
 
   try {
 
-    const sessionId = req.body.sessionId || "guest";
-    const message = (req.body.message || "").toLowerCase();
+    const text = (req.body.message || "").toLowerCase();
 
-    if (!userBehavior[sessionId]) {
-      userBehavior[sessionId] = { views: {}, clicks: {} };
+    if (!text) {
+      return res.json({
+        reply: "🌸 اكتب طلبك وأنا أساعدك أختار الأفضل لك",
+        products: []
+      });
     }
 
-    const behavior = userBehavior[sessionId];
+    const parsed = await yasminAI(text);
 
-    // 🧠 AI analysis
-    const parsed = await analyze(message);
+    console.log("🌸 Yasmin AI:", parsed);
 
-    console.log("🧠 AI:", parsed);
-
-    // 🧠 ranking engine (TikTok logic)
     let scored = products.map(p => {
 
       let score = 0;
+      let reasons = [];
 
       const tags = p.tags || [];
 
-      // 🔥 1. Trending boost (global popularity)
-      score += (p.clicks || 0) * 4;
-      score += (p.views || 0) * 1;
+      // 🎯 category
+      if (parsed.category === "ولد" && tags.includes("ولد")) score += 70;
+      if (parsed.category === "فتاة" && tags.includes("فتاة")) score += 70;
+      if (parsed.category === "مولود" && tags.includes("مولود")) score += 70;
 
-      // 👤 2. Personal behavior (VERY important TikTok factor)
-      if (behavior.clicks[p.id]) {
-        score += 40;
-      }
+      // 🎁 intent
+      if (parsed.intent === "هدية" && tags.includes("هدية")) score += 30;
 
-      if (behavior.views[p.id]) {
-        score += 10;
-      }
+      // 🎨 mood
+      if (parsed.mood === "كيوت" && tags.includes("وردي")) score += 25;
+      if (parsed.mood === "فخم" && tags.includes("فاخر")) score += 25;
+      if (parsed.mood === "رياضي" && tags.includes("رياضة")) score += 25;
 
-      // 🎯 3. Intent boost
-      if (parsed.intent === "هدية" && tags.includes("هدية")) {
-        score += 20;
-      }
-
-      // 🔍 4. keyword match
+      // 🔍 keywords
       (parsed.keywords || []).forEach(k => {
-        if (tags.includes(k.toLowerCase())) {
-          score += 30;
-        }
+        if (tags.includes(k.toLowerCase())) score += 35;
       });
 
-      // 💰 5. price engagement bias
-      if (p.price < 100) score += 5;
+      // 🔥 popularity
+      score += (p.clicks || 0) * 4;
+      score += (p.views || 0) * 1;
 
       return {
         id: p.id,
         title: p.title,
         image: p.image,
         url: p.url,
-        score
+        price: p.price,
+        score,
+        reasons
       };
 
     });
 
-    // 📊 sort like TikTok feed
     scored.sort((a, b) => b.score - a.score);
+
+    scored = scored.filter(p => p.score > 0);
+
+    if (scored.length === 0) {
+      scored = products.slice(0, 3);
+    }
 
     const top = scored.slice(0, 3);
 
     res.json({
-      reply: "هذه أفضل اقتراحات لك حسب ذوقك 👇",
-      products: top
+      reply: "🌸 ياسمين اختارت لك أفضل المنتجات بعناية:",
+      products: top,
+      ai: parsed
     });
 
   } catch (err) {
@@ -178,51 +183,29 @@ app.post("/recommend", async (req, res) => {
 });
 
 
-// 👀 view tracking (TikTok learning)
+// 👀 view tracking
 app.post("/view", (req, res) => {
 
-  const { sessionId, id } = req.body;
-
-  if (!userBehavior[sessionId]) {
-    userBehavior[sessionId] = { views: {}, clicks: {} };
-  }
-
-  userBehavior[sessionId].views[id] =
-    (userBehavior[sessionId].views[id] || 0) + 1;
-
-  const product = products.find(p => p.id === id);
-
-  if (product) product.views++;
+  const p = products.find(x => x.id === req.body.id);
+  if (p) p.views++;
 
   res.json({ ok: true });
 
 });
 
 
-// 👆 click tracking (strong signal)
+// 👆 click tracking
 app.post("/click", (req, res) => {
 
-  const { sessionId, id } = req.body;
-
-  if (!userBehavior[sessionId]) {
-    userBehavior[sessionId] = { views: {}, clicks: {} };
-  }
-
-  userBehavior[sessionId].clicks[id] =
-    (userBehavior[sessionId].clicks[id] || 0) + 1;
-
-  const product = products.find(p => p.id === id);
-
-  if (product) product.clicks++;
+  const p = products.find(x => x.id === req.body.id);
+  if (p) p.clicks++;
 
   res.json({ ok: true });
 
 });
 
 
-// 🚀 server start
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log("🚀 TikTok AI Engine running on port " + PORT);
+// 🚀 تشغيل السيرفر
+app.listen(process.env.PORT || 3000, () => {
+  console.log("🌸 Yasmin AI Store Running...");
 });
