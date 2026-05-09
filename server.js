@@ -339,21 +339,28 @@ ${catalog}
 
     });
 
-  } catch (err) {
-
-    console.log("❌ SERVER ERROR:", err);
-
-    return res.json({
-
-      reply: "🌸 ياسمين لديها خلل تقني مؤقت",
-
-      recommend: false
-
-    });
-
   }
+  
+ catch (err) {
 
-});
+  console.log("❌ FULL ERROR:");
+  console.log(err);
+
+  return res.json({
+
+    reply:
+      "❌ " +
+      (
+        err?.error?.message ||
+        err?.message ||
+        "Unknown Error"
+      ),
+
+    recommend: false
+
+  });
+
+}
 
 
 // 🚀 تشغيل السيرفر
