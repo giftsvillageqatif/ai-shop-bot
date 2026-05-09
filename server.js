@@ -8,7 +8,6 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// 🔐 OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
@@ -16,15 +15,17 @@ const openai = new OpenAI({
 // 🛍 المنتجات
 let products = [];
 
+// 👤 بيانات سلوك المستخدمين (TikTok concept)
+const userBehavior = {}; 
+// شكلها:
+// { sessionId: { views: [], clicks: [] } }
+
 // 📊 تحميل Excel
 function loadExcel() {
 
   const path = "./products.xlsx";
 
-  if (!fs.existsSync(path)) {
-    console.log("❌ products.xlsx not found");
-    return;
-  }
+  if (!fs.existsSync(path)) return;
 
   const file = xlsx.readFile(path);
   const sheet = file.Sheets[file.SheetNames[0]];
@@ -43,8 +44,8 @@ function loadExcel() {
       .split(",")
       .map(t => t.trim()),
 
-    clicks: 0,
-    views: 0
+    views: 0,
+    clicks: 0
   }));
 
   console.log("✅ Products loaded:", products.length);
@@ -53,8 +54,8 @@ function loadExcel() {
 loadExcel();
 
 
-// 🧠 AI parsing (فهم النية)
-async function analyzeUser(text) {
+// 🧠 AI فهم النية (خفيف فقط)
+async function analyze(text) {
 
   try {
 
@@ -64,33 +65,23 @@ async function analyzeUser(text) {
         {
           role: "system",
           content: `
-أنت محرك توصية متجر عالمي مثل Amazon.
-
-حول طلب العميل إلى JSON فقط:
-
+حول الطلب إلى:
 {
-  "category": "ولد | فتاة | مولود | غير محدد",
-  "intent": "هدية | استخدام شخصي | غير محدد",
-  "mood": "كيوت | فخم | رياضي | عادي",
-  "keywords": ["..."]
+ "intent": "هدية | شراء | استكشاف | غير محدد",
+ "keywords": ["..."]
 }
 `
         },
-        {
-          role: "user",
-          content: text
-        }
+        { role: "user", content: text }
       ]
     });
 
     return JSON.parse(ai.choices[0].message.content);
 
-  } catch (e) {
+  } catch {
 
     return {
-      category: "غير محدد",
       intent: "غير محدد",
-      mood: "غير محدد",
       keywords: []
     };
 
@@ -99,73 +90,58 @@ async function analyzeUser(text) {
 }
 
 
-// 🧠 Recommendation Engine
+// 🧠 TikTok Recommendation Engine
 app.post("/recommend", async (req, res) => {
 
   try {
 
-    const text = (req.body.message || "").toLowerCase();
+    const sessionId = req.body.sessionId || "guest";
+    const message = (req.body.message || "").toLowerCase();
 
-    if (!text) {
-      return res.json({
-        reply: "اكتب طلبك عشان أساعدك 👌",
-        products: []
-      });
+    if (!userBehavior[sessionId]) {
+      userBehavior[sessionId] = { views: {}, clicks: {} };
     }
 
-    // 🧠 1. تحليل AI
-    const parsed = await analyzeUser(text);
+    const behavior = userBehavior[sessionId];
+
+    // 🧠 AI analysis
+    const parsed = await analyze(message);
 
     console.log("🧠 AI:", parsed);
 
-    // 🧠 2. scoring engine (Hybrid AI)
+    // 🧠 ranking engine (TikTok logic)
     let scored = products.map(p => {
 
       let score = 0;
-      let reasons = [];
 
       const tags = p.tags || [];
 
-      // 🎯 Category filter (أقوى وزن)
-      if (parsed.category === "ولد" && tags.includes("ولد")) {
-        score += 60;
-        reasons.push("مناسب للولد");
+      // 🔥 1. Trending boost (global popularity)
+      score += (p.clicks || 0) * 4;
+      score += (p.views || 0) * 1;
+
+      // 👤 2. Personal behavior (VERY important TikTok factor)
+      if (behavior.clicks[p.id]) {
+        score += 40;
       }
 
-      if (parsed.category === "فتاة" && tags.includes("فتاة")) {
-        score += 60;
-        reasons.push("مناسب للفتاة");
+      if (behavior.views[p.id]) {
+        score += 10;
       }
 
-      if (parsed.category === "مولود" && tags.includes("مولود")) {
-        score += 60;
-        reasons.push("مناسب للمولود");
-      }
-
-      // 🎁 intent
+      // 🎯 3. Intent boost
       if (parsed.intent === "هدية" && tags.includes("هدية")) {
-        score += 25;
-        reasons.push("مناسب كهدية");
+        score += 20;
       }
 
-      // 🎨 mood
-      if (parsed.mood === "كيوت" && tags.includes("وردي")) score += 20;
-      if (parsed.mood === "فخم" && tags.includes("فاخر")) score += 20;
-      if (parsed.mood === "رياضي" && tags.includes("رياضة")) score += 20;
-
-      // 🔍 keywords
+      // 🔍 4. keyword match
       (parsed.keywords || []).forEach(k => {
         if (tags.includes(k.toLowerCase())) {
           score += 30;
-          reasons.push("يطابق: " + k);
         }
       });
 
-      // 🔥 Popularity boost (Amazon style)
-      score += (p.clicks || 0) * 3;
-      score += (p.views || 0) * 0.5;
-
-      // 💰 slight preference for cheaper products (optional)
+      // 💰 5. price engagement bias
       if (p.price < 100) score += 5;
 
       return {
@@ -173,50 +149,27 @@ app.post("/recommend", async (req, res) => {
         title: p.title,
         image: p.image,
         url: p.url,
-        price: p.price,
-        score,
-        reasons
+        score
       };
 
     });
 
-    // 🧠 3. sorting
+    // 📊 sort like TikTok feed
     scored.sort((a, b) => b.score - a.score);
-
-    // ❌ remove useless
-    scored = scored.filter(p => p.score > 0);
-
-    // 🧠 fallback smart (no AI needed)
-    if (scored.length === 0) {
-
-      scored = products
-        .sort(() => 0.5 - Math.random())
-        .slice(0, 3)
-        .map(p => ({
-          id: p.id,
-          title: p.title,
-          image: p.image,
-          url: p.url,
-          score: 1,
-          reasons: ["اقتراح عام"]
-        }));
-
-    }
 
     const top = scored.slice(0, 3);
 
     res.json({
-      reply: "هذه أفضل المنتجات لك بناءً على ذوقك 👇",
-      products: top,
-      ai: parsed
+      reply: "هذه أفضل اقتراحات لك حسب ذوقك 👇",
+      products: top
     });
 
   } catch (err) {
 
-    console.log("❌ ERROR:", err);
+    console.log(err);
 
     res.status(500).json({
-      reply: "حدث خطأ في السيرفر",
+      reply: "ياسمين لديها خلل تقني",
       products: []
     });
 
@@ -225,16 +178,42 @@ app.post("/recommend", async (req, res) => {
 });
 
 
-// 📊 click tracking (learning system)
-app.post("/click", (req, res) => {
+// 👀 view tracking (TikTok learning)
+app.post("/view", (req, res) => {
 
-  const id = req.body.id;
+  const { sessionId, id } = req.body;
+
+  if (!userBehavior[sessionId]) {
+    userBehavior[sessionId] = { views: {}, clicks: {} };
+  }
+
+  userBehavior[sessionId].views[id] =
+    (userBehavior[sessionId].views[id] || 0) + 1;
 
   const product = products.find(p => p.id === id);
 
-  if (product) {
-    product.clicks = (product.clicks || 0) + 1;
+  if (product) product.views++;
+
+  res.json({ ok: true });
+
+});
+
+
+// 👆 click tracking (strong signal)
+app.post("/click", (req, res) => {
+
+  const { sessionId, id } = req.body;
+
+  if (!userBehavior[sessionId]) {
+    userBehavior[sessionId] = { views: {}, clicks: {} };
   }
+
+  userBehavior[sessionId].clicks[id] =
+    (userBehavior[sessionId].clicks[id] || 0) + 1;
+
+  const product = products.find(p => p.id === id);
+
+  if (product) product.clicks++;
 
   res.json({ ok: true });
 
@@ -245,289 +224,5 @@ app.post("/click", (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log("🚀 Amazon-Level AI Store running on port " + PORT);
-});      return {
-
-        title: (p.name || "").toString(),
-
-        image: (p.image || "").toString(),
-
-        url: (p.url || "").toString(),
-
-        price: Number(p.price || 0),
-
-        tags: (p.tags || "")
-          .toString()
-          .toLowerCase()
-          .split(",")
-          .map(function (tag) {
-
-            return tag.trim();
-
-          })
-
-      };
-
-    });
-
-    console.log("✅ Products loaded:", products.length);
-
-  } catch (err) {
-
-    console.log("❌ Excel error:", err);
-
-  }
-
-}
-
-// تشغيل تحميل المنتجات
-loadExcel();
-
-
-// 🧠 API التوصيات
-app.post("/recommend", async (req, res) => {
-
-  try {
-
-    const category =
-      (req.body.category || "")
-      .toLowerCase()
-      .trim();
-
-    const occasion =
-      (req.body.occasion || "")
-      .toLowerCase()
-      .trim();
-
-    const extra =
-      (req.body.extra || "")
-      .toLowerCase()
-      .trim();
-
-    console.log("📩 REQUEST:", {
-      category,
-      occasion,
-      extra
-    });
-
-    // 🧠 فلترة القسم الأساسي
-    let filtered = products.filter(function (p) {
-
-      const tags = p.tags || [];
-
-      // 👦 ولد
-      if (category.includes("ولد")) {
-
-        return tags.includes("ولد");
-
-      }
-
-      // 👧 فتاة / بنت
-      if (
-        category.includes("فتاة") ||
-        category.includes("بنت")
-      ) {
-
-        return (
-          tags.includes("فتاة") ||
-          tags.includes("بنت")
-        );
-
-      }
-
-      // 👶 مولود
-      if (category.includes("مولود")) {
-
-        return tags.includes("مولود");
-
-      }
-
-      return false;
-
-    });
-
-    // ❌ إذا ما لقى منتجات
-    if (filtered.length === 0) {
-
-      return res.json({
-
-        reply: "ما لقيت منتجات مناسبة",
-
-        products: []
-
-      });
-
-    }
-
-    // 🧠 حساب السكور
-    let scored = filtered.map(function (p) {
-
-      let score = 0;
-
-      const tags = p.tags || [];
-
-      // 🎁 مناسبة هدية
-      if (
-        occasion.includes("هدية") &&
-        tags.includes("هدية")
-      ) {
-
-        score += 50;
-
-      }
-
-      // 🧠 الكلمات الإضافية
-      extra.split(" ").forEach(function (word) {
-
-        word = word.trim();
-
-        if (!word) return;
-
-        // تطابق مباشر مع tags
-        if (tags.includes(word)) {
-
-          score += 40;
-
-        }
-
-        // 🏀 رياضة
-        if (
-          word.includes("كرة") ||
-          word.includes("رياضة") ||
-          word.includes("سلة")
-        ) {
-
-          if (
-            tags.includes("رياضة") ||
-            tags.includes("كرة")
-          ) {
-
-            score += 30;
-
-          }
-
-        }
-
-        // 🎮 ألعاب
-        if (
-          word.includes("لعبة") ||
-          word.includes("ألعاب")
-        ) {
-
-          if (
-            tags.includes("ألعاب") ||
-            tags.includes("لعبة")
-          ) {
-
-            score += 30;
-
-          }
-
-        }
-
-        // 💖 وردي
-        if (
-          word.includes("وردي")
-        ) {
-
-          if (tags.includes("وردي")) {
-
-            score += 20;
-
-          }
-
-        }
-
-        // ✨ فاخر
-        if (
-          word.includes("فاخر") ||
-          word.includes("فخم")
-        ) {
-
-          if (
-            tags.includes("فاخر") ||
-            tags.includes("فخم")
-          ) {
-
-            score += 20;
-
-          }
-
-        }
-
-      });
-
-      return {
-
-        title: p.title,
-        image: p.image,
-        url: p.url,
-        score: score
-
-      };
-
-    });
-
-    // ترتيب
-    scored.sort(function (a, b) {
-
-      return b.score - a.score;
-
-    });
-
-    // حذف المنتجات الضعيفة
-    scored = scored.filter(function (p) {
-
-      return p.score > 0;
-
-    });
-
-    // 🧠 fallback عشوائي من نفس القسم
-    if (scored.length === 0) {
-
-      filtered.sort(function () {
-
-        return 0.5 - Math.random();
-
-      });
-
-      scored = filtered;
-
-    }
-
-    // أفضل 3
-    const top = scored.slice(0, 3);
-
-    res.json({
-
-      reply: "هذه أفضل المنتجات المناسبة لك 👇",
-
-      products: top
-
-    });
-
-  } catch (err) {
-
-    console.log("❌ SERVER ERROR:", err);
-
-    res.status(500).json({
-
-      reply: "حدث خطأ في السيرفر",
-
-      products: []
-
-    });
-
-  }
-
-});
-
-
-// 🚀 تشغيل السيرفر
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, function () {
-
-  console.log("🚀 Server running on port " + PORT);
-
+  console.log("🚀 TikTok AI Engine running on port " + PORT);
 });
