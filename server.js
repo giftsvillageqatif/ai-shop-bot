@@ -6,11 +6,11 @@ import OpenAI from "openai";
 
 const app = express();
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 app.use(cors());
 
 
-// 🧠 OpenAI
+// 🔑 OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
@@ -25,48 +25,113 @@ let sessions = {};
 
 
 // 🏪 معلومات المتجر
-const storeKnowledge = fs.readFileSync(
-  "./store_knowledge.txt",
-  "utf8"
-);
+let storeKnowledge = "";
+
+try {
+
+  storeKnowledge = fs.readFileSync(
+    "./store_knowledge.txt",
+    "utf8"
+  );
+
+} catch {
+
+  storeKnowledge = `
+اسم المتجر: قرية الهدايا
+
+المتجر متخصص في:
+الهدايا - الأطفال - المواليد - المناسبات.
+
+الشحن:
+داخل السعودية خلال 2-5 أيام.
+
+الدفع:
+مدى - فيزا - أبل باي.
+
+الاستبدال:
+خلال 3 أيام بشرط عدم الاستخدام.
+`;
+
+}
 
 
-// 📦 تحميل المنتجات من Excel
+// 📦 تحميل المنتجات
 function loadProducts() {
 
-  const file = xlsx.readFile("./products.xlsx");
+  try {
 
-  const sheet = file.Sheets[file.SheetNames[0]];
+    const file = xlsx.readFile("./products.xlsx");
 
-  const data = xlsx.utils.sheet_to_json(sheet);
+    const sheet = file.Sheets[file.SheetNames[0]];
 
-  products = data.map(function (p, i) {
+    const data = xlsx.utils.sheet_to_json(sheet);
 
-    return {
-      id: i,
-      title: p.name || "",
-      description: p.description || "",
-      image: p.image || "",
-      url: p.url || ""
-    };
+    products = data.map(function (p, i) {
 
-  });
+      return {
+        id: i,
+        title: p.name || "",
+        description: p.description || "",
+        image: p.image || "",
+        url: p.url || ""
+      };
 
-  console.log("✅ Products Loaded:", products.length);
+    });
+
+    console.log("✅ Products Loaded:", products.length);
+
+  } catch (err) {
+
+    console.log("❌ Excel Error:", err);
+
+    products = [];
+
+  }
 
 }
 
 loadProducts();
 
 
-// 🧠 CHAT
+// 🧠 تنظيف JSON
+function safeJson(text) {
+
+  try {
+
+    let clean = text
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+
+    return JSON.parse(clean);
+
+  } catch {
+
+    return null;
+
+  }
+
+}
+
+
+// ❤️ الصفحة الرئيسية
+app.get("/", function (req, res) {
+
+  res.send("🌸 Yasmin AI Store Running");
+
+});
+
+
+// 💬 CHAT
 app.post("/chat", async function (req, res) {
 
   try {
 
-    const sessionId = req.body.sessionId || "guest";
+    const sessionId =
+      req.body.sessionId || "guest";
 
-    const message = req.body.message || "";
+    const message =
+      req.body.message || "";
 
     // 🧠 إنشاء جلسة
     if (!sessions[sessionId]) {
@@ -85,7 +150,7 @@ app.post("/chat", async function (req, res) {
       content: message
     });
 
-    // 🛍 تجهيز كتالوج المنتجات
+    // 🛍 تجهيز المنتجات
     const catalog = products.map(function (p) {
 
       return `
@@ -104,42 +169,45 @@ ${p.description}
     // 🧠 ياسمين
     const ai = await openai.chat.completions.create({
 
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-mini",
+
+      temperature: 0.7,
 
       messages: [
 
         {
           role: "system",
           content: `
-أنتِ ياسمين 🌸 موظفة متجر ذكية واحترافية.
+أنتِ ياسمين 🌸 موظفة متجر Gifts Village.
 
 مهمتك:
 - مساعدة العملاء داخل المتجر فقط
+- الإجابة عن المنتجات
+- الإجابة عن الشحن والدفع والاستبدال
+- التفاعل الطبيعي مع العميل
 - فهم احتياج العميل
-- التفاعل بشكل طبيعي مثل موظفة حقيقية
-- سؤال العميل إذا احتجت تفاصيل أكثر
-- ترشيح منتجات مناسبة من المتجر فقط
-- الإجابة عن سياسة المتجر والشحن والدفع والاستبدال
+- سؤال العميل عند الحاجة
+- ترشيح منتجات مناسبة
 
 ممنوع:
 - الخروج عن موضوع المتجر
+- الكلام عن السياسة أو البرمجة أو الدين
 - اختراع معلومات غير موجودة
-- الكلام عن السياسة أو الدين أو البرمجة أو أي شيء خارج المتجر
 
 إذا فهمتِ العميل وتريدين ترشيح منتجات:
-أرجعي JSON فقط بهذا الشكل:
+
+أرجعي JSON فقط:
 
 {
   "reply": "ردك الطبيعي",
   "recommend": true,
-  "product_query": "وصف مختصر لما يريده العميل"
+  "product_query": "وصف ما يريده العميل"
 }
 
-إذا لم تفهمي العميل بالكامل:
-أرجعي JSON فقط بهذا الشكل:
+إذا تحتاجين معلومات أكثر:
 
 {
-  "reply": "سؤالك أو ردك الطبيعي",
+  "reply": "سؤالك الطبيعي",
   "recommend": false
 }
 
@@ -147,7 +215,7 @@ ${p.description}
 
 ${storeKnowledge}
 
-كتالوج المنتجات:
+المنتجات:
 
 ${catalog}
 `
@@ -159,27 +227,24 @@ ${catalog}
 
     });
 
+    const content =
+      ai.choices[0].message.content || "";
 
-    let content = ai.choices[0].message.content;
-
+    // 💬 حفظ رد ياسمين
     session.history.push({
       role: "assistant",
       content: content
     });
 
+    const parsed = safeJson(content);
 
-    let parsed;
+    // ❌ إذا فشل JSON
+    if (!parsed) {
 
-    try {
-
-      parsed = JSON.parse(content);
-
-    } catch {
-
-      parsed = {
-        reply: content,
+      return res.json({
+        reply: "🌸 ممكن توضّح لي أكثر؟",
         recommend: false
-      };
+      });
 
     }
 
@@ -187,61 +252,70 @@ ${catalog}
     // 🛍 ترشيح المنتجات
     if (parsed.recommend) {
 
-      const recommendAI = await openai.chat.completions.create({
+      const recAI =
+        await openai.chat.completions.create({
 
-        model: "gpt-4o-mini",
+          model: "gpt-4.1-mini",
 
-        messages: [
+          temperature: 0.3,
 
-          {
-            role: "system",
-            content: `
-أنت نظام توصيات متجر ذكي.
+          messages: [
+
+            {
+              role: "system",
+              content: `
+أنت نظام ترشيح منتجات ذكي.
 
 اختر أفضل 3 منتجات فقط من القائمة.
 
 أرجع JSON فقط بهذا الشكل:
 
 {
-  "products": [1,5,2]
+  "products": [1,2,3]
 }
 
 القائمة:
 
 ${catalog}
 `
-          },
+            },
 
-          {
-            role: "user",
-            content: parsed.product_query
-          }
+            {
+              role: "user",
+              content: parsed.product_query
+            }
 
-        ]
-
-      });
-
-
-      let selected = [];
-
-      try {
-
-        const rec = JSON.parse(
-          recommendAI.choices[0].message.content
-        );
-
-        selected = products.filter(function (p) {
-
-          return rec.products.indexOf(p.id) !== -1;
+          ]
 
         });
 
-      } catch {
+      const recContent =
+        recAI.choices[0].message.content || "";
+
+      const recParsed =
+        safeJson(recContent);
+
+      let selected = [];
+
+      if (
+        recParsed &&
+        recParsed.products
+      ) {
+
+        selected = products.filter(function (p) {
+
+          return recParsed.products.indexOf(p.id) !== -1;
+
+        });
+
+      }
+
+      // 🔥 fallback
+      if (selected.length === 0) {
 
         selected = products.slice(0, 3);
 
       }
-
 
       return res.json({
 
@@ -256,8 +330,8 @@ ${catalog}
     }
 
 
-    // 💬 فقط رد عادي
-    res.json({
+    // 💬 فقط رد
+    return res.json({
 
       reply: parsed.reply,
 
@@ -267,11 +341,11 @@ ${catalog}
 
   } catch (err) {
 
-    console.log(err);
+    console.log("❌ SERVER ERROR:", err);
 
-    res.json({
+    return res.json({
 
-      reply: "🌸 حصل خطأ بسيط، جرب مرة ثانية",
+      reply: "🌸 ياسمين لديها خلل تقني مؤقت",
 
       recommend: false
 
@@ -283,8 +357,14 @@ ${catalog}
 
 
 // 🚀 تشغيل السيرفر
-app.listen(process.env.PORT || 3000, function () {
+const PORT =
+  process.env.PORT || 3000;
 
-  console.log("🌸 Yasmin AI Store Running");
+app.listen(PORT, function () {
+
+  console.log(
+    "🌸 Yasmin AI Running On Port:",
+    PORT
+  );
 
 });
