@@ -3,6 +3,7 @@ import cors from "cors";
 import xlsx from "xlsx";
 import fs from "fs";
 import OpenAI from "openai";
+import nodemailer from "nodemailer";
 
 const app = express();
 
@@ -16,12 +17,27 @@ const openai = new OpenAI({
 });
 
 
+// 📧 البريد
+const transporter = nodemailer.createTransport({
+
+  service: "gmail",
+
+  auth: {
+
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+
+  }
+
+});
+
+
 // 📦 المنتجات
 let products = [];
 
 
 // 💬 الجلسات
-let sessions = {};
+const sessions = {};
 
 
 // 🏪 معلومات المتجر
@@ -29,10 +45,7 @@ let storeKnowledge = "";
 
 try {
 
-  storeKnowledge = fs.readFileSync(
-    "./store_knowledge.txt",
-    "utf8"
-  );
+  storeKnowledge = fs.readFileSync("./store_knowledge.txt", "utf8");
 
 } catch {
 
@@ -50,10 +63,10 @@ try {
 مدى - فيزا - أبل باي.
 
 الاستبدال:
-يحق للعميل استبدال المنتجات خلال (3) أيام من تاريخ الاستلام.
+خلال 3 أيام من الاستلام.
 
 الاسترجاع:
-يحق للعميل استرجاع المنتجات خلال (1) أيام من تاريخ الاستلام.
+خلال يوم واحد من الاستلام.
 `;
 
 }
@@ -64,59 +77,24 @@ function loadProducts() {
 
   try {
 
-    const file =
-      xlsx.readFile(
-        "./products.xlsx"
-      );
+    const file = xlsx.readFile("./products.xlsx");
+    const sheet = file.Sheets[file.SheetNames[0]];
+    const data = xlsx.utils.sheet_to_json(sheet);
 
-    const sheet =
-      file.Sheets[
-        file.SheetNames[0]
-      ];
+    products = data.map((p, i) => ({
+      id: i,
+      title: p.name || "",
+      description: p.description || "",
+      price: p.price || "",
+      image: p.image || "",
+      url: p.url || ""
+    }));
 
-    const data =
-      xlsx.utils.sheet_to_json(
-        sheet
-      );
-
-    products =
-      data.map(function (p, i) {
-
-        return {
-
-          id: i,
-
-          title:
-            p.name || "",
-
-          description:
-            p.description || "",
-
-          price:
-            p.price || "",
-
-          image:
-            p.image || "",
-
-          url:
-            p.url || ""
-
-        };
-
-      });
-
-    console.log(
-      "✅ Products Loaded:",
-      products.length
-    );
+    console.log("✅ Products Loaded:", products.length);
 
   } catch (err) {
 
-    console.log(
-      "❌ Excel Error:",
-      err
-    );
-
+    console.log("❌ Excel Error:", err);
     products = [];
 
   }
@@ -126,13 +104,34 @@ function loadProducts() {
 loadProducts();
 
 
-// 🧠 تنظيف JSON
+// 🔄 تحديث المنتجات
+setInterval(loadProducts, 1000 * 60 * 5);
+
+
+// 🧹 تنظيف الجلسات
+setInterval(() => {
+
+  const now = Date.now();
+
+  Object.keys(sessions).forEach((id) => {
+
+    const s = sessions[id];
+
+    if (s.lastUsed && now - s.lastUsed > 1000 * 60 * 60) {
+      delete sessions[id];
+    }
+
+  });
+
+}, 1000 * 60 * 10);
+
+
+// 🧠 JSON
 function safeJson(text) {
 
   try {
 
-    let clean =
-      text
+    let clean = text
       .replace(/```json/g, "")
       .replace(/```/g, "")
       .trim();
@@ -148,359 +147,56 @@ function safeJson(text) {
 }
 
 
-// ❤️ الصفحة الرئيسية
-app.get("/", function (req, res) {
-
-  res.send(
-    "🌸 Yasmin AI Store Running"
-  );
-
+// ❤️ Home
+app.get("/", (req, res) => {
+  res.send("🌸 Yasmin AI Running");
 });
 
 
-// 💬 CHAT
-app.post("/chat", async function (req, res) {
+// 🎉 ORDER COMPLETED
+app.post("/order-completed", async (req, res) => {
 
   try {
 
-    const sessionId =
-      req.body.sessionId ||
-      "guest";
+    const sessionId = req.body.sessionId;
+    const customer = req.body.customer || "عميل";
+    const orderId = req.body.orderId || "غير معروف";
 
-    const message =
-      req.body.message || "";
-
-    // 🧠 إنشاء جلسة
-    if (!sessions[sessionId]) {
-
-      sessions[sessionId] = {
-        history: []
-      };
-
+    if (!sessionId || !sessions[sessionId]) {
+      return res.json({ success: true });
     }
 
-    const session =
-      sessions[sessionId];
+    const session = sessions[sessionId];
 
-    // 💬 حفظ رسالة العميل
-    session.history.push({
+    session.lastUsed = Date.now();
 
-      role: "user",
+    // 📧 إشعار إيميل
+    await transporter.sendMail({
 
-      content: message
+      from: process.env.EMAIL_USER,
+      to: "giftsvillageqatif@gmail.com",
+      subject: "🛍 طلب مكتمل جديد",
 
-    });
-
-    // 🛍 تجهيز المنتجات
-    const catalog =
-      products.map(function (p) {
-
-        return `
-
-ID: ${p.id}
-
-اسم المنتج:
-${p.title}
-
-الوصف:
-${p.description}
-
-السعر:
-${p.price}
-
-`;
-
-      }).join("\n");
-
-
-    // 🧠 ياسمين
-    const ai =
-      await openai.chat.completions.create({
-
-        model: "gpt-4.1-mini",
-
-        temperature: 0.7,
-
-        messages: [
-
-          {
-
-            role: "system",
-
-            content: `
-
-أنتِ ياسمين 🌸 موظفة متجر قرية الهدايا.
-
-مهمتك:
-- مساعدة العملاء داخل المتجر فقط
-- الإجابة عن المنتجات
-- الإجابة عن الشحن والدفع والاستبدال
-- التفاعل الطبيعي مع العميل
-- فهم احتياج العميل
-- سؤال العميل عند الحاجة
-- ترشيح منتجات مناسبة
-
-ممنوع:
-- الخروج عن موضوع المتجر
-- الكلام عن السياسة أو البرمجة أو الدين
-- اختراع معلومات غير موجودة
-
-إذا فهمتِ العميل وتريدين ترشيح منتجات:
-
-أرجعي JSON فقط:
-
-{
-  "reply": "ردك الطبيعي",
-  "recommend": true,
-  "product_query": "وصف ما يريده العميل"
-}
-
-إذا تحتاجين معلومات أكثر:
-
-{
-  "reply": "سؤالك الطبيعي",
-  "recommend": false
-}
-
-معلومات المتجر:
-
-${storeKnowledge}
-
-المنتجات:
-
-${catalog}
-
-`
-          },
-
-          ...session.history
-
-        ]
-
-      });
-
-    const content =
-      ai.choices[0]
-      .message.content || "";
-
-    // 💬 حفظ رد ياسمين
-    session.history.push({
-
-      role: "assistant",
-
-      content: content
+      html: `
+        <h2>طلب مكتمل 🌸</h2>
+        <p>العميل: <b>${customer}</b></p>
+        <p>رقم الطلب: <b>${orderId}</b></p>
+        <p>Session: <b>${sessionId}</b></p>
+      `
 
     });
-
-    const parsed =
-      safeJson(content);
-
-    // ❌ إذا فشل JSON
-    if (!parsed) {
-
-      return res.json({
-
-        reply:
-          "🌸 ممكن توضّح لي أكثر؟",
-
-        recommend: false
-
-      });
-
-    }
-
-
-    // 🛍 ترشيح المنتجات
-    if (parsed.recommend) {
-
-      const recAI =
-        await openai.chat.completions.create({
-
-          model: "gpt-4.1-mini",
-
-          temperature: 0.3,
-
-          messages: [
-
-            {
-
-              role: "system",
-
-              content: `
-
-أنت نظام ترشيح منتجات ذكي.
-
-اختر أفضل 3 منتجات فقط من القائمة.
-
-أرجع JSON فقط بهذا الشكل:
-
-{
-  "products": [1,2,3]
-}
-
-القائمة:
-
-${catalog}
-
-`
-            },
-
-            {
-
-              role: "user",
-
-              content:
-                parsed.product_query
-
-            }
-
-          ]
-
-        });
-
-      const recContent =
-        recAI.choices[0]
-        .message.content || "";
-
-      const recParsed =
-        safeJson(recContent);
-
-      let selected = [];
-
-      if (
-        recParsed &&
-        recParsed.products
-      ) {
-
-        selected =
-          products.filter(
-            function (p) {
-
-              return recParsed.products.indexOf(
-                p.id
-              ) !== -1;
-
-            }
-          );
-
-      }
-
-      // 🔥 fallback
-      if (
-        selected.length === 0
-      ) {
-
-        selected =
-          products.slice(0, 3);
-
-      }
-
-      return res.json({
-
-        reply:
-          parsed.reply,
-
-        recommend: true,
-
-        products:
-          selected
-
-      });
-
-    }
-
-
-    // 💬 فقط رد
-    return res.json({
-
-      reply:
-        parsed.reply,
-
-      recommend: false
-
-    });
-
-  } catch (err) {
-
-    console.log(
-      "❌ SERVER ERROR:",
-      err
-    );
 
     return res.json({
-
-      reply:
-        "🌸 عذراً، يوجد خلل تقني مؤقت",
-
-      recommend: false
-
-    });
-
-  }
-
-});
-
-
-// ⭐ التقييمات
-app.post("/review", function (req, res) {
-
-  try {
-
-    const review = {
-
-      customer:
-        req.body.customer ||
-        "عميل",
-
-      rating:
-        req.body.rating || 0,
-
-      sessionId:
-        req.body.sessionId ||
-        "unknown",
-
-      date:
-        new Date().toISOString()
-
-    };
-
-    let reviews = [];
-
-    try {
-
-      reviews =
-        JSON.parse(
-          fs.readFileSync(
-            "./reviews.json",
-            "utf8"
-          )
-        );
-
-    } catch {}
-
-    reviews.push(review);
-
-    fs.writeFileSync(
-
-      "./reviews.json",
-
-      JSON.stringify(
-        reviews,
-        null,
-        2
-      )
-
-    );
-
-    res.json({
-      success: true
+      success: true,
+      trigger: "order_completed",
+      message: `🌸 شكراً لك ${customer} 💖 سعدنا بخدمتك، كيف تقييمك؟ ⭐`
     });
 
   } catch (err) {
 
     console.log(err);
 
-    res.json({
+    return res.json({
       success: false
     });
 
@@ -509,15 +205,219 @@ app.post("/review", function (req, res) {
 });
 
 
-// 🚀 تشغيل السيرفر
-const PORT =
-  process.env.PORT || 3000;
+// 💬 CHAT
+app.post("/chat", async (req, res) => {
 
-app.listen(PORT, function () {
+  try {
 
-  console.log(
-    "🌸 Yasmin AI Running On Port:",
-    PORT
-  );
+    let sessionId = req.body.sessionId;
 
+    if (!sessionId) {
+      sessionId = "guest_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8);
+    }
+
+    const message = req.body.message || "";
+
+    if (!sessions[sessionId]) {
+      sessions[sessionId] = {
+        history: [],
+        lastUsed: Date.now()
+      };
+    }
+
+    const session = sessions[sessionId];
+
+    session.lastUsed = Date.now();
+
+    // 🧠 أمر الطلب المكتمل
+    if (message === "ORDER_COMPLETED") {
+
+      return res.json({
+        reply: "🌸 شكراً لطلبك 💖 سعدنا بخدمتك، كيف تقييمك؟ ⭐",
+        recommend: false,
+        products: [],
+        sessionId
+      });
+
+    }
+
+    session.history.push({
+      role: "user",
+      content: message
+    });
+
+    if (session.history.length > 12) {
+      session.history = session.history.slice(-12);
+    }
+
+    const catalog = products.slice(0, 50).map(p => `
+ID: ${p.id}
+اسم: ${p.title}
+سعر: ${p.price}
+`).join("\n");
+
+
+    let ai;
+
+    try {
+
+      ai = await Promise.race([
+
+        openai.chat.completions.create({
+
+          model: "gpt-4.1-mini",
+          temperature: 0.7,
+          response_format: { type: "json_object" },
+
+          messages: [
+
+            {
+              role: "system",
+              content: `
+أنتِ ياسمين 🌸 موظفة متجر قرية الهدايا.
+
+مهمتك:
+- مساعدة العملاء فقط
+- ترشيح منتجات
+- التفاعل بلطف
+
+أرجعي JSON فقط:
+
+{
+  "reply": "...",
+  "recommend": true,
+  "products": [1,2]
+}
+
+المنتجات:
+${catalog}
+
+`
+            },
+
+            ...session.history
+
+          ]
+
+        }),
+
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout")), 25000)
+        )
+
+      ]);
+
+    } catch {
+
+      return res.json({
+        reply: "🌸 النظام مشغول الآن",
+        recommend: false,
+        products: [],
+        sessionId
+      });
+
+    }
+
+    const content = ai.choices[0].message.content || "";
+    session.history.push({ role: "assistant", content });
+
+    const parsed = safeJson(content);
+
+    if (!parsed) {
+      return res.json({
+        reply: "🌸 ممكن توضيح أكثر؟",
+        recommend: false,
+        products: [],
+        sessionId
+      });
+    }
+
+    let selected = [];
+
+    if (Array.isArray(parsed.products)) {
+
+      selected = products.filter(p =>
+        parsed.products.includes(p.id)
+      );
+
+    }
+
+    return res.json({
+      reply: parsed.reply || "",
+      recommend: parsed.recommend || false,
+      products: selected,
+      sessionId
+    });
+
+  } catch (err) {
+
+    console.log(err);
+
+    return res.json({
+      reply: "🌸 خطأ مؤقت",
+      recommend: false,
+      products: []
+    });
+
+  }
+
+});
+
+
+// ⭐ REVIEW
+app.post("/review", async (req, res) => {
+
+  try {
+
+    const review = {
+      customer: req.body.customer || "عميل",
+      rating: req.body.rating || 0,
+      review: req.body.review || "",
+      sessionId: req.body.sessionId || "unknown",
+      date: new Date().toISOString()
+    };
+
+    let reviews = [];
+
+    try {
+      reviews = JSON.parse(fs.readFileSync("./reviews.json", "utf8"));
+    } catch {}
+
+    reviews.push(review);
+
+    fs.writeFileSync("./reviews.json", JSON.stringify(reviews, null, 2));
+
+    await transporter.sendMail({
+
+      from: process.env.EMAIL_USER,
+      to: "giftsvillageqatif@gmail.com",
+      subject: "⭐ تقييم جديد",
+
+      html: `
+        <h2>تقييم 🌸</h2>
+        <p>العميل: <b>${review.customer}</b></p>
+        <p>التقييم: <b>${review.rating}</b></p>
+        <p>${review.review}</p>
+      `
+
+    });
+
+    res.json({ success: true });
+
+  } catch (err) {
+
+    console.log(err);
+
+    res.json({ success: false });
+
+  }
+
+});
+
+
+// 🚀 تشغيل
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log("🌸 Yasmin Running:", PORT);
 });
