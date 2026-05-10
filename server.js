@@ -3,7 +3,7 @@ import cors from "cors";
 import xlsx from "xlsx";
 import fs from "fs";
 import OpenAI from "openai";
-import nodemailer from "nodemailer";
+import * as nodemailer from "nodemailer";
 
 const app = express();
 
@@ -17,7 +17,7 @@ const openai = new OpenAI({
 });
 
 
-// 📧 البريد
+// 📧 Email
 const transporter = nodemailer.createTransport({
 
   service: "gmail",
@@ -48,10 +48,9 @@ try {
 } catch {
 
   storeKnowledge = `
-اسم المتجر: قرية الهدايا
-متجر هدايا ومناسبات
-الشحن 2-5 أيام داخل السعودية
-الدفع مدى - فيزا - أبل باي
+قرية الهدايا
+هدايا - مواليد - مناسبات
+شحن 2-5 أيام
 `;
 
 }
@@ -75,7 +74,7 @@ function loadProducts() {
       url: p.url || ""
     }));
 
-    console.log("✅ Products Loaded:", products.length);
+    console.log("✅ Products:", products.length);
 
   } catch (err) {
 
@@ -89,12 +88,12 @@ function loadProducts() {
 loadProducts();
 
 
-// 🧹 تنظيف الجلسات
-setInterval(function () {
+// 🧹 جلسات
+setInterval(() => {
 
   const now = Date.now();
 
-  Object.keys(sessions).forEach(function (id) {
+  Object.keys(sessions).forEach(id => {
 
     const s = sessions[id];
 
@@ -104,7 +103,7 @@ setInterval(function () {
 
   });
 
-}, 1000 * 60 * 10);
+}, 600000);
 
 
 // 🧠 JSON safe
@@ -112,12 +111,12 @@ function safeJson(text) {
 
   try {
 
-    let clean = text
-      .replace(/```json/g, "")
-      .replace(/```/g, "")
-      .trim();
-
-    return JSON.parse(clean);
+    return JSON.parse(
+      text
+        .replace(/```json/g, "")
+        .replace(/```/g, "")
+        .trim()
+    );
 
   } catch {
     return null;
@@ -126,13 +125,58 @@ function safeJson(text) {
 }
 
 
-// ❤️ home
+// ❤️ Home
 app.get("/", (req, res) => {
   res.send("🌸 Yasmin AI Running");
 });
 
 
-// 🎯 CHAT
+// 🎉 ORDER COMPLETED
+app.post("/order-completed", async (req, res) => {
+
+  try {
+
+    const { sessionId, customer, orderId } = req.body;
+
+    if (!sessionId || !sessions[sessionId]) {
+      return res.json({ success: true });
+    }
+
+    sessions[sessionId].lastUsed = Date.now();
+
+    // 📧 Email
+    await transporter.sendMail({
+
+      from: process.env.EMAIL_USER,
+      to: "giftsvillageqatif@gmail.com",
+      subject: "🛍 طلب مكتمل",
+
+      html: `
+        <h2>طلب جديد 🌸</h2>
+        <p>العميل: ${customer}</p>
+        <p>الطلب: ${orderId}</p>
+        <p>Session: ${sessionId}</p>
+      `
+
+    });
+
+    return res.json({
+      success: true,
+      message: `🌸 شكراً لك ${customer} 💖`
+    });
+
+  } catch (err) {
+
+    console.log(err);
+
+    return res.json({ success: false });
+
+  }
+
+});
+
+
+// 💬 CHAT
 app.post("/chat", async (req, res) => {
 
   try {
@@ -166,18 +210,13 @@ app.post("/chat", async (req, res) => {
     }
 
 
-    // 📦 كتالوج مبسط
-    const catalog = products.map(function (p) {
-      return `
+    const catalog = products.map(p => `
 ID:${p.id}
 NAME:${p.title}
-DESC:${p.description}
 PRICE:${p.price}
-`;
-    }).join("\n");
+`).join("\n");
 
 
-    // 🤖 AI
     const ai = await openai.chat.completions.create({
 
       model: "gpt-4.1-mini",
@@ -191,26 +230,13 @@ PRICE:${p.price}
           content: `
 أنتِ ياسمين 🌸
 
-مهمتك:
-تحليل نية العميل (intent) واختيار المنتجات المناسبة له.
-
-الأنواع:
-- هدايا نسائية
-- أطفال
-- مواليد
-- مناسبات
-- أفكار هدايا
-
-ارجع JSON فقط:
+ارجع JSON:
 
 {
-  "reply": "رد طبيعي",
+  "reply": "...",
   "recommend": true,
-  "intent": "wedding | baby | gift | kids | general"
+  "products": [1,2]
 }
-
-معلومات المتجر:
-${storeKnowledge}
 
 المنتجات:
 ${catalog}
@@ -224,12 +250,12 @@ ${catalog}
     });
 
 
-    const content = ai.choices[0].message.content || "";
+    const content = ai.choices[0].message.content;
     const parsed = safeJson(content);
 
     if (!parsed) {
       return res.json({
-        reply: "🌸 ممكن توضّح أكثر؟",
+        reply: "🌸 وضّح أكثر",
         recommend: false,
         products: [],
         sessionId
@@ -237,50 +263,16 @@ ${catalog}
     }
 
 
-    // 🎯 ذكاء اختيار المنتجات حسب النية
-    let selected = [];
-
-    if (parsed.intent === "baby") {
-
-      selected = products.filter(p =>
-        p.title.includes("طفل") ||
-        p.title.includes("مواليد")
-      );
-
-    }
-
-    else if (parsed.intent === "gift") {
-
-      selected = products.filter(p =>
-        p.title.includes("هدية") ||
-        p.description.includes("هدية")
-      );
-
-    }
-
-    else if (parsed.intent === "wedding") {
-
-      selected = products.filter(p =>
-        p.title.includes("مناسبة") ||
-        p.description.includes("زواج")
-      );
-
-    }
-
-    else {
-
-      selected = products.slice(0, 3);
-
-    }
+    const selected = products.filter(p =>
+      parsed.products?.includes(p.id)
+    );
 
 
     return res.json({
-
-      reply: parsed.reply || "",
+      reply: parsed.reply,
       recommend: true,
       products: selected,
       sessionId
-
     });
 
   } catch (err) {
@@ -303,25 +295,6 @@ app.post("/review", async (req, res) => {
 
   try {
 
-    const review = {
-      customer: req.body.customer || "عميل",
-      rating: req.body.rating || 0,
-      review: req.body.review || "",
-      sessionId: req.body.sessionId || "unknown",
-      date: new Date().toISOString()
-    };
-
-    let reviews = [];
-
-    try {
-      reviews = JSON.parse(fs.readFileSync("./reviews.json", "utf8"));
-    } catch {}
-
-    reviews.push(review);
-
-    fs.writeFileSync("./reviews.json", JSON.stringify(reviews, null, 2));
-
-
     await transporter.sendMail({
 
       from: process.env.EMAIL_USER,
@@ -329,10 +302,9 @@ app.post("/review", async (req, res) => {
       subject: "⭐ تقييم جديد",
 
       html: `
-        <h2>تقييم 🌸</h2>
-        <p>${review.customer}</p>
-        <p>${review.rating}/5</p>
-        <p>${review.review}</p>
+        <p>العميل: ${req.body.customer}</p>
+        <p>التقييم: ${req.body.rating}</p>
+        <p>${req.body.review || ""}</p>
       `
 
     });
@@ -349,9 +321,9 @@ app.post("/review", async (req, res) => {
 });
 
 
-// 🚀 تشغيل السيرفر
+// 🚀 RUN
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log("🌸 Yasmin Running:", PORT);
+  console.log("🌸 Running on", PORT);
 });
