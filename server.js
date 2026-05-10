@@ -52,7 +52,7 @@ try {
 الاستبدال:
 يحق للعميل استبدال المنتجات خلال (3) أيام من تاريخ الاستلام.
 
-الاسترجاع :
+الاسترجاع:
 يحق للعميل استرجاع المنتجات خلال (1) أيام من تاريخ الاستلام.
 `;
 
@@ -64,29 +64,58 @@ function loadProducts() {
 
   try {
 
-    const file = xlsx.readFile("./products.xlsx");
+    const file =
+      xlsx.readFile(
+        "./products.xlsx"
+      );
 
-    const sheet = file.Sheets[file.SheetNames[0]];
+    const sheet =
+      file.Sheets[
+        file.SheetNames[0]
+      ];
 
-    const data = xlsx.utils.sheet_to_json(sheet);
+    const data =
+      xlsx.utils.sheet_to_json(
+        sheet
+      );
 
-    products = data.map(function (p, i) {
+    products =
+      data.map(function (p, i) {
 
-      return {
-        id: i,
-        title: p.name || "",
-        description: p.description || "",
-        image: p.image || "",
-        url: p.url || ""
-      };
+        return {
 
-    });
+          id: i,
 
-    console.log("✅ Products Loaded:", products.length);
+          title:
+            p.name || "",
+
+          description:
+            p.description || "",
+
+          price:
+            p.price || "",
+
+          image:
+            p.image || "",
+
+          url:
+            p.url || ""
+
+        };
+
+      });
+
+    console.log(
+      "✅ Products Loaded:",
+      products.length
+    );
 
   } catch (err) {
 
-    console.log("❌ Excel Error:", err);
+    console.log(
+      "❌ Excel Error:",
+      err
+    );
 
     products = [];
 
@@ -102,7 +131,8 @@ function safeJson(text) {
 
   try {
 
-    let clean = text
+    let clean =
+      text
       .replace(/```json/g, "")
       .replace(/```/g, "")
       .trim();
@@ -121,7 +151,9 @@ function safeJson(text) {
 // ❤️ الصفحة الرئيسية
 app.get("/", function (req, res) {
 
-  res.send("🌸 Yasmin AI Store Running");
+  res.send(
+    "🌸 Yasmin AI Store Running"
+  );
 
 });
 
@@ -132,7 +164,8 @@ app.post("/chat", async function (req, res) {
   try {
 
     const sessionId =
-      req.body.sessionId || "guest";
+      req.body.sessionId ||
+      "guest";
 
     const message =
       req.body.message || "";
@@ -146,42 +179,56 @@ app.post("/chat", async function (req, res) {
 
     }
 
-    const session = sessions[sessionId];
+    const session =
+      sessions[sessionId];
 
     // 💬 حفظ رسالة العميل
     session.history.push({
+
       role: "user",
+
       content: message
+
     });
 
     // 🛍 تجهيز المنتجات
-    const catalog = products.map(function (p) {
+    const catalog =
+      products.map(function (p) {
 
-      return `
+        return `
+
 ID: ${p.id}
 
 اسم المنتج:
 ${p.title}
 
-وصف المنتج:
+الوصف:
 ${p.description}
+
+السعر:
+${p.price}
+
 `;
 
-    }).join("\n");
+      }).join("\n");
 
 
     // 🧠 ياسمين
-    const ai = await openai.chat.completions.create({
+    const ai =
+      await openai.chat.completions.create({
 
-      model: "gpt-4.1-mini",
+        model: "gpt-4.1-mini",
 
-      temperature: 0.7,
+        temperature: 0.7,
 
-      messages: [
+        messages: [
 
-        {
-          role: "system",
-          content: `
+          {
+
+            role: "system",
+
+            content: `
+
 أنتِ ياسمين 🌸 موظفة متجر قرية الهدايا.
 
 مهمتك:
@@ -222,32 +269,42 @@ ${storeKnowledge}
 المنتجات:
 
 ${catalog}
+
 `
-        },
+          },
 
-        ...session.history
+          ...session.history
 
-      ]
+        ]
 
-    });
+      });
 
     const content =
-      ai.choices[0].message.content || "";
+      ai.choices[0]
+      .message.content || "";
 
     // 💬 حفظ رد ياسمين
     session.history.push({
+
       role: "assistant",
+
       content: content
+
     });
 
-    const parsed = safeJson(content);
+    const parsed =
+      safeJson(content);
 
     // ❌ إذا فشل JSON
     if (!parsed) {
 
       return res.json({
-        reply: "🌸 ممكن توضّح لي أكثر؟",
+
+        reply:
+          "🌸 ممكن توضّح لي أكثر؟",
+
         recommend: false
+
       });
 
     }
@@ -266,8 +323,11 @@ ${catalog}
           messages: [
 
             {
+
               role: "system",
+
               content: `
+
 أنت نظام ترشيح منتجات ذكي.
 
 اختر أفضل 3 منتجات فقط من القائمة.
@@ -281,12 +341,17 @@ ${catalog}
 القائمة:
 
 ${catalog}
+
 `
             },
 
             {
+
               role: "user",
-              content: parsed.product_query
+
+              content:
+                parsed.product_query
+
             }
 
           ]
@@ -294,7 +359,8 @@ ${catalog}
         });
 
       const recContent =
-        recAI.choices[0].message.content || "";
+        recAI.choices[0]
+        .message.content || "";
 
       const recParsed =
         safeJson(recContent);
@@ -306,28 +372,38 @@ ${catalog}
         recParsed.products
       ) {
 
-        selected = products.filter(function (p) {
+        selected =
+          products.filter(
+            function (p) {
 
-          return recParsed.products.indexOf(p.id) !== -1;
+              return recParsed.products.indexOf(
+                p.id
+              ) !== -1;
 
-        });
+            }
+          );
 
       }
 
       // 🔥 fallback
-      if (selected.length === 0) {
+      if (
+        selected.length === 0
+      ) {
 
-        selected = products.slice(0, 3);
+        selected =
+          products.slice(0, 3);
 
       }
 
       return res.json({
 
-        reply: parsed.reply,
+        reply:
+          parsed.reply,
 
         recommend: true,
 
-        products: selected
+        products:
+          selected
 
       });
 
@@ -337,7 +413,8 @@ ${catalog}
     // 💬 فقط رد
     return res.json({
 
-      reply: parsed.reply,
+      reply:
+        parsed.reply,
 
       recommend: false
 
@@ -345,11 +422,15 @@ ${catalog}
 
   } catch (err) {
 
-    console.log("❌ SERVER ERROR:", err);
+    console.log(
+      "❌ SERVER ERROR:",
+      err
+    );
 
     return res.json({
 
-      reply: "🌸 عذرا ياسمين لديها خلل تقني مؤقت",
+      reply:
+        "🌸 عذراً، يوجد خلل تقني مؤقت",
 
       recommend: false
 
@@ -360,42 +441,23 @@ ${catalog}
 });
 
 
-// 🚀 تشغيل السيرفر
-const PORT =
-  process.env.PORT || 3000;
-// ⭐ تقييمات العملاء
+// ⭐ التقييمات
 app.post("/review", function (req, res) {
 
   try {
 
-    const rating =
-      req.body.rating || 0;
-
-    const customer =
-      req.body.customer ||
-      "عميل";
-
-    const sessionId =
-      req.body.sessionId ||
-      "unknown";
-
-    console.log("⭐ NEW REVIEW");
-
-    console.log({
-      customer: customer,
-      rating: rating,
-      sessionId: sessionId,
-      date: new Date()
-    });
-
-    // 💾 حفظ داخل ملف
     const review = {
 
-      customer: customer,
+      customer:
+        req.body.customer ||
+        "عميل",
 
-      rating: rating,
+      rating:
+        req.body.rating || 0,
 
-      sessionId: sessionId,
+      sessionId:
+        req.body.sessionId ||
+        "unknown",
 
       date:
         new Date().toISOString()
@@ -406,45 +468,51 @@ app.post("/review", function (req, res) {
 
     try {
 
-      const old =
-        fs.readFileSync(
-          "./reviews.json",
-          "utf8"
+      reviews =
+        JSON.parse(
+          fs.readFileSync(
+            "./reviews.json",
+            "utf8"
+          )
         );
-
-      reviews = JSON.parse(old);
 
     } catch {}
 
     reviews.push(review);
 
     fs.writeFileSync(
+
       "./reviews.json",
+
       JSON.stringify(
         reviews,
         null,
         2
       )
+
     );
 
-    return res.json({
+    res.json({
       success: true
     });
 
   } catch (err) {
 
-    console.log(
-      "❌ REVIEW ERROR:",
-      err
-    );
+    console.log(err);
 
-    return res.json({
+    res.json({
       success: false
     });
 
   }
 
 });
+
+
+// 🚀 تشغيل السيرفر
+const PORT =
+  process.env.PORT || 3000;
+
 app.listen(PORT, function () {
 
   console.log(
