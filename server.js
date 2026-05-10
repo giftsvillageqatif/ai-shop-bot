@@ -23,10 +23,8 @@ const transporter = nodemailer.createTransport({
   service: "gmail",
 
   auth: {
-
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
-
   }
 
 });
@@ -51,22 +49,9 @@ try {
 
   storeKnowledge = `
 اسم المتجر: قرية الهدايا
-
-المتجر متخصص في:
-الهدايا - الأطفال - المواليد - المناسبات.
-
-الشحن:
-خلال يوم عمل واحد لمناطق القطيف وضواحيها.
-داخل السعودية خلال 2-5 أيام.
-
-الدفع:
-مدى - فيزا - أبل باي.
-
-الاستبدال:
-خلال 3 أيام من الاستلام.
-
-الاسترجاع:
-خلال يوم واحد من الاستلام.
+متجر هدايا ومناسبات
+الشحن 2-5 أيام داخل السعودية
+الدفع مدى - فيزا - أبل باي
 `;
 
 }
@@ -104,16 +89,12 @@ function loadProducts() {
 loadProducts();
 
 
-// 🔄 تحديث المنتجات
-setInterval(loadProducts, 1000 * 60 * 5);
-
-
 // 🧹 تنظيف الجلسات
-setInterval(() => {
+setInterval(function () {
 
   const now = Date.now();
 
-  Object.keys(sessions).forEach((id) => {
+  Object.keys(sessions).forEach(function (id) {
 
     const s = sessions[id];
 
@@ -126,7 +107,7 @@ setInterval(() => {
 }, 1000 * 60 * 10);
 
 
-// 🧠 JSON
+// 🧠 JSON safe
 function safeJson(text) {
 
   try {
@@ -139,73 +120,19 @@ function safeJson(text) {
     return JSON.parse(clean);
 
   } catch {
-
     return null;
-
   }
 
 }
 
 
-// ❤️ Home
+// ❤️ home
 app.get("/", (req, res) => {
   res.send("🌸 Yasmin AI Running");
 });
 
 
-// 🎉 ORDER COMPLETED
-app.post("/order-completed", async (req, res) => {
-
-  try {
-
-    const sessionId = req.body.sessionId;
-    const customer = req.body.customer || "عميل";
-    const orderId = req.body.orderId || "غير معروف";
-
-    if (!sessionId || !sessions[sessionId]) {
-      return res.json({ success: true });
-    }
-
-    const session = sessions[sessionId];
-
-    session.lastUsed = Date.now();
-
-    // 📧 إشعار إيميل
-    await transporter.sendMail({
-
-      from: process.env.EMAIL_USER,
-      to: "giftsvillageqatif@gmail.com",
-      subject: "🛍 طلب مكتمل جديد",
-
-      html: `
-        <h2>طلب مكتمل 🌸</h2>
-        <p>العميل: <b>${customer}</b></p>
-        <p>رقم الطلب: <b>${orderId}</b></p>
-        <p>Session: <b>${sessionId}</b></p>
-      `
-
-    });
-
-    return res.json({
-      success: true,
-      trigger: "order_completed",
-      message: `🌸 شكراً لك ${customer} 💖 سعدنا بخدمتك، كيف تقييمك؟ ⭐`
-    });
-
-  } catch (err) {
-
-    console.log(err);
-
-    return res.json({
-      success: false
-    });
-
-  }
-
-});
-
-
-// 💬 CHAT
+// 🎯 CHAT
 app.post("/chat", async (req, res) => {
 
   try {
@@ -213,7 +140,7 @@ app.post("/chat", async (req, res) => {
     let sessionId = req.body.sessionId;
 
     if (!sessionId) {
-      sessionId = "guest_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8);
+      sessionId = "guest_" + Date.now();
     }
 
     const message = req.body.message || "";
@@ -229,18 +156,6 @@ app.post("/chat", async (req, res) => {
 
     session.lastUsed = Date.now();
 
-    // 🧠 أمر الطلب المكتمل
-    if (message === "ORDER_COMPLETED") {
-
-      return res.json({
-        reply: "🌸 شكراً لطلبك 💖 سعدنا بخدمتك، كيف تقييمك؟ ⭐",
-        recommend: false,
-        products: [],
-        sessionId
-      });
-
-    }
-
     session.history.push({
       role: "user",
       content: message
@@ -250,103 +165,122 @@ app.post("/chat", async (req, res) => {
       session.history = session.history.slice(-12);
     }
 
-    const catalog = products.slice(0, 50).map(p => `
-ID: ${p.id}
-اسم: ${p.title}
-سعر: ${p.price}
-`).join("\n");
+
+    // 📦 كتالوج مبسط
+    const catalog = products.map(function (p) {
+      return `
+ID:${p.id}
+NAME:${p.title}
+DESC:${p.description}
+PRICE:${p.price}
+`;
+    }).join("\n");
 
 
-    let ai;
+    // 🤖 AI
+    const ai = await openai.chat.completions.create({
 
-    try {
+      model: "gpt-4.1-mini",
+      temperature: 0.7,
+      response_format: { type: "json_object" },
 
-      ai = await Promise.race([
+      messages: [
 
-        openai.chat.completions.create({
-
-          model: "gpt-4.1-mini",
-          temperature: 0.7,
-          response_format: { type: "json_object" },
-
-          messages: [
-
-            {
-              role: "system",
-              content: `
-أنتِ ياسمين 🌸 موظفة متجر قرية الهدايا.
+        {
+          role: "system",
+          content: `
+أنتِ ياسمين 🌸
 
 مهمتك:
-- مساعدة العملاء فقط
-- ترشيح منتجات
-- التفاعل بلطف
+تحليل نية العميل (intent) واختيار المنتجات المناسبة له.
 
-أرجعي JSON فقط:
+الأنواع:
+- هدايا نسائية
+- أطفال
+- مواليد
+- مناسبات
+- أفكار هدايا
+
+ارجع JSON فقط:
 
 {
-  "reply": "...",
+  "reply": "رد طبيعي",
   "recommend": true,
-  "products": [1,2]
+  "intent": "wedding | baby | gift | kids | general"
 }
+
+معلومات المتجر:
+${storeKnowledge}
 
 المنتجات:
 ${catalog}
-
 `
-            },
+        },
 
-            ...session.history
+        ...session.history
 
-          ]
+      ]
 
-        }),
+    });
 
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Timeout")), 25000)
-        )
-
-      ]);
-
-    } catch {
-
-      return res.json({
-        reply: "🌸 النظام مشغول الآن",
-        recommend: false,
-        products: [],
-        sessionId
-      });
-
-    }
 
     const content = ai.choices[0].message.content || "";
-    session.history.push({ role: "assistant", content });
-
     const parsed = safeJson(content);
 
     if (!parsed) {
       return res.json({
-        reply: "🌸 ممكن توضيح أكثر؟",
+        reply: "🌸 ممكن توضّح أكثر؟",
         recommend: false,
         products: [],
         sessionId
       });
     }
 
+
+    // 🎯 ذكاء اختيار المنتجات حسب النية
     let selected = [];
 
-    if (Array.isArray(parsed.products)) {
+    if (parsed.intent === "baby") {
 
       selected = products.filter(p =>
-        parsed.products.includes(p.id)
+        p.title.includes("طفل") ||
+        p.title.includes("مواليد")
       );
 
     }
 
+    else if (parsed.intent === "gift") {
+
+      selected = products.filter(p =>
+        p.title.includes("هدية") ||
+        p.description.includes("هدية")
+      );
+
+    }
+
+    else if (parsed.intent === "wedding") {
+
+      selected = products.filter(p =>
+        p.title.includes("مناسبة") ||
+        p.description.includes("زواج")
+      );
+
+    }
+
+    else {
+
+      selected = products.slice(0, 3);
+
+    }
+
+
     return res.json({
+
       reply: parsed.reply || "",
-      recommend: parsed.recommend || false,
+      recommend: true,
       products: selected,
       sessionId
+
     });
 
   } catch (err) {
@@ -387,6 +321,7 @@ app.post("/review", async (req, res) => {
 
     fs.writeFileSync("./reviews.json", JSON.stringify(reviews, null, 2));
 
+
     await transporter.sendMail({
 
       from: process.env.EMAIL_USER,
@@ -395,8 +330,8 @@ app.post("/review", async (req, res) => {
 
       html: `
         <h2>تقييم 🌸</h2>
-        <p>العميل: <b>${review.customer}</b></p>
-        <p>التقييم: <b>${review.rating}</b></p>
+        <p>${review.customer}</p>
+        <p>${review.rating}/5</p>
         <p>${review.review}</p>
       `
 
@@ -407,7 +342,6 @@ app.post("/review", async (req, res) => {
   } catch (err) {
 
     console.log(err);
-
     res.json({ success: false });
 
   }
@@ -415,7 +349,7 @@ app.post("/review", async (req, res) => {
 });
 
 
-// 🚀 تشغيل
+// 🚀 تشغيل السيرفر
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
