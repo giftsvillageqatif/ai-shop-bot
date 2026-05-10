@@ -363,7 +363,88 @@ ${catalog}
 // 🚀 تشغيل السيرفر
 const PORT =
   process.env.PORT || 3000;
+// ⭐ تقييمات العملاء
+app.post("/review", function (req, res) {
 
+  try {
+
+    const rating =
+      req.body.rating || 0;
+
+    const customer =
+      req.body.customer ||
+      "عميل";
+
+    const sessionId =
+      req.body.sessionId ||
+      "unknown";
+
+    console.log("⭐ NEW REVIEW");
+
+    console.log({
+      customer: customer,
+      rating: rating,
+      sessionId: sessionId,
+      date: new Date()
+    });
+
+    // 💾 حفظ داخل ملف
+    const review = {
+
+      customer: customer,
+
+      rating: rating,
+
+      sessionId: sessionId,
+
+      date:
+        new Date().toISOString()
+
+    };
+
+    let reviews = [];
+
+    try {
+
+      const old =
+        fs.readFileSync(
+          "./reviews.json",
+          "utf8"
+        );
+
+      reviews = JSON.parse(old);
+
+    } catch {}
+
+    reviews.push(review);
+
+    fs.writeFileSync(
+      "./reviews.json",
+      JSON.stringify(
+        reviews,
+        null,
+        2
+      )
+    );
+
+    return res.json({
+      success: true
+    });
+
+  } catch (err) {
+
+    console.log(
+      "❌ REVIEW ERROR:",
+      err
+    );
+
+    return res.json({
+      success: false
+    });
+
+  }
+
+});
 app.listen(PORT, function () {
 
   console.log(
