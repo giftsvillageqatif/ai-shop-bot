@@ -11,14 +11,14 @@ app.use(express.json({ limit: "10mb" }));
 app.use(cors());
 
 // =========================
-// 🔑 OPENAI
+// OPENAI
 // =========================
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
 // =========================
-// 📧 EMAIL
+// EMAIL (FIXED + DEBUG)
 // =========================
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -28,44 +28,38 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// تأكد الاتصال عند تشغيل السيرفر
+transporter.verify(function (error, success) {
+  if (error) {
+    console.log("❌ EMAIL SETUP ERROR:", error);
+  } else {
+    console.log("📧 EMAIL READY TO SEND");
+  }
+});
+
 // =========================
-// 📦 PRODUCTS
+// PRODUCTS
 // =========================
 let products = [];
 
 // =========================
-// 💬 SESSIONS
+// SESSIONS
 // =========================
 let sessions = {};
 
 // =========================
-// 🏪 STORE INFO
+// STORE INFO
 // =========================
 let storeKnowledge = "";
 
 try {
   storeKnowledge = fs.readFileSync("./store_knowledge.txt", "utf8");
 } catch {
-  storeKnowledge = `
-اسم المتجر:
-قرية الهدايا
-
-الشحن:
-2-5 أيام داخل السعودية.
-
-الدفع:
-مدى - فيزا - أبل باي.
-
-الاستبدال:
-خلال 3 أيام.
-
-الاسترجاع:
-خلال يوم واحد.
-`;
+  storeKnowledge = "قرية الهدايا - متجر هدايا";
 }
 
 // =========================
-// 📦 LOAD PRODUCTS
+// LOAD PRODUCTS
 // =========================
 function loadProducts() {
   try {
@@ -73,20 +67,16 @@ function loadProducts() {
     const sheet = file.Sheets[file.SheetNames[0]];
     const data = xlsx.utils.sheet_to_json(sheet);
 
-    products = data.map(function (p, i) {
-      let image = String(p.image || "").split(",")[0].trim();
+    products = data.map((p, i) => ({
+      id: i,
+      title: p.name || "",
+      description: p.description || "",
+      price: p.price || "",
+      image: String(p.image || "").split(",")[0].trim(),
+      url: p.url || ""
+    }));
 
-      return {
-        id: i,
-        title: p.name || "",
-        description: p.description || "",
-        price: p.price || "",
-        image: image,
-        url: p.url || ""
-      };
-    });
-
-    console.log("✅ PRODUCTS:", products.length);
+    console.log("✅ PRODUCTS LOADED:", products.length);
   } catch (err) {
     console.log("❌ EXCEL ERROR:", err);
   }
@@ -95,29 +85,9 @@ function loadProducts() {
 loadProducts();
 
 // =========================
-// 🧠 SAFE JSON
+// CHAT
 // =========================
-function safeJson(text) {
-  try {
-    return JSON.parse(
-      text.replace(/```json/g, "").replace(/```/g, "").trim()
-    );
-  } catch {
-    return null;
-  }
-}
-
-// =========================
-// ❤️ ROOT
-// =========================
-app.get("/", function (req, res) {
-  res.send("🌸 Yasmin AI Running");
-});
-
-// =========================
-// 💬 CHAT
-// =========================
-app.post("/chat", async function (req, res) {
+app.post("/chat", async (req, res) => {
   try {
     const sessionId = req.body.sessionId || "guest";
     const message = req.body.message || "";
@@ -133,14 +103,9 @@ app.post("/chat", async function (req, res) {
       content: message
     });
 
-    const catalog = products.map(function (p) {
-      return `
-ID:${p.id}
-الاسم:${p.title}
-الوصف:${p.description}
-السعر:${p.price}
-`;
-    }).join("\n");
+    const catalog = products.map(p =>
+      `ID:${p.id}\nالاسم:${p.title}\nالسعر:${p.price}\n`
+    ).join("\n");
 
     const ai = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
@@ -150,12 +115,10 @@ ID:${p.id}
           role: "system",
           content: `
 أنتِ ياسمين 🌸
+متجر قرية الهدايا
 
-مهمتك:
-- فهم العميل
-- اقتراح منتجات
-
-ارجع JSON فقط.
+إذا احتجت ترشيح منتجات أرجع JSON.
+غير كذا رد طبيعي نص فقط.
 
 المنتجات:
 ${catalog}
@@ -172,33 +135,43 @@ ${catalog}
       content
     });
 
-    const parsed = safeJson(content);
+    // ❌ لا نعتمد JSON بشكل صارم
+    let parsed = null;
+
+    try {
+      parsed = JSON.parse(
+        content.replace(/```json/g, "").replace(/```/g, "").trim()
+      );
+    } catch {
+      parsed = null;
+    }
 
     if (!parsed) {
       return res.json({
-        reply: "🌸 ممكن توضّح أكثر؟",
+        reply: content,
         recommend: false
       });
     }
 
     return res.json({
-      reply: parsed.reply,
+      reply: parsed.reply || content,
       recommend: parsed.recommend || false
     });
 
   } catch (err) {
     console.log("❌ CHAT ERROR:", err);
+
     return res.json({
-      reply: "🌸 يوجد خلل مؤقت",
+      reply: "يوجد خطأ مؤقت",
       recommend: false
     });
   }
 });
 
 // =========================
-// ⭐ REVIEW (FIXED EMAIL)
+// REVIEW + EMAIL FIXED
 // =========================
-app.post("/review", async function (req, res) {
+app.post("/review", async (req, res) => {
   try {
     const review = {
       orderId: req.body.orderId || "غير معروف",
@@ -208,43 +181,34 @@ app.post("/review", async function (req, res) {
     };
 
     let reviews = [];
-
     try {
       reviews = JSON.parse(fs.readFileSync("./reviews.json", "utf8"));
     } catch {}
 
     reviews.push(review);
 
-    fs.writeFileSync(
-      "./reviews.json",
-      JSON.stringify(reviews, null, 2)
-    );
-
-    // =========================
-    // 📧 EMAIL FIXED VERSION
-    // =========================
+    fs.writeFileSync("./reviews.json", JSON.stringify(reviews, null, 2));
 
     console.log("📩 Sending email...");
 
     if (!process.env.GMAIL_PASS) {
-      console.log("❌ GMAIL_PASS is missing in environment variables");
+      console.log("❌ GMAIL_PASS NOT FOUND IN ENV");
     }
 
-    const mailResult = await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: "giftsvillageqatif@gmail.com",
       to: "giftsvillageqatif@gmail.com",
       subject: "⭐ تقييم جديد",
       html: `
         <h2>تقييم جديد</h2>
-        <p><b>رقم الطلب:</b> ${review.orderId}</p>
-        <p><b>العميل:</b> ${review.customer}</p>
-        <p><b>التقييم:</b> ${review.rating}/5</p>
-        <p><b>التاريخ:</b> ${review.date}</p>
+        <p>الطلب: ${review.orderId}</p>
+        <p>العميل: ${review.customer}</p>
+        <p>التقييم: ${review.rating}/5</p>
+        <p>التاريخ: ${review.date}</p>
       `
     });
 
-    console.log("📧 EMAIL SENT SUCCESSFULLY");
-    console.log("ID:", mailResult.messageId);
+    console.log("📧 EMAIL SENT:", info.messageId);
 
     res.json({ success: true });
 
@@ -259,10 +223,10 @@ app.post("/review", async function (req, res) {
 });
 
 // =========================
-// 🚀 START
+// START
 // =========================
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, function () {
-  console.log("🌸 SERVER RUNNING:", PORT);
+app.listen(PORT, () => {
+  console.log("🌸 SERVER RUNNING ON:", PORT);
 });
