@@ -43,16 +43,15 @@ let products = [];
 let sessions = {};
 
 // =========================
-// SMART CATEGORY (AI FRIENDLY)
+// CATEGORY SYSTEM (BASIC TAGGING ONLY)
 // =========================
 function autoCategory(title = "", desc = "") {
-
   const text = (title + " " + (desc || "")).toLowerCase();
 
-  if (/(بنات|باربي|مكياج|اكسسوارات|عطر|شنطة)/.test(text)) return "بنات";
-  if (/(سيارة|روبوت|مسدس|طائرة|اولاد|أولاد)/.test(text)) return "اولاد";
-  if (/(مواليد|baby|newborn|infant|رضيع)/.test(text)) return "مواليد";
-  if (/(جماعي|board|لعبة جماعية|تحدي)/.test(text)) return "جماعي";
+  if (/(بنات|باربي|مكياج|عطر|شنطة)/.test(text)) return "بنات";
+  if (/(سيارة|روبوت|مسدس|اولاد|أولاد)/.test(text)) return "اولاد";
+  if (/(مواليد|baby|newborn|رضيع)/.test(text)) return "مواليد";
+  if (/(جماعي|board|لعبة|تحدي)/.test(text)) return "جماعي";
 
   return "عام";
 }
@@ -93,7 +92,7 @@ app.get("/", (req, res) => {
 });
 
 // =========================
-// CHAT (SMART INTENT AI)
+// CHAT (FULL INTELLIGENCE)
 // =========================
 app.post("/chat", async (req, res) => {
   try {
@@ -120,26 +119,31 @@ app.post("/chat", async (req, res) => {
     ).join("\n");
 
     // =========================
-    // 🔥 AI UNDERSTANDING INTENT
+    // 🔥 INTENT UNDERSTANDING (CORE FIX)
     // =========================
     const ai = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
-      temperature: 0.4,
+      temperature: 0.3,
       messages: [
         {
           role: "system",
           content: `
-أنت نظام تصنيف منتجات لمتجر.
+أنت نظام ذكي لمتجر.
 
-حلل طلب العميل وأرجع JSON فقط بهذا الشكل:
+افهم نية العميل فقط بدون كلمات ثابتة.
+
+أرجع JSON فقط:
 
 {
  "reply":"رد مختصر",
  "category":"بنات | اولاد | مواليد | جماعي | عام",
- "recommend":true
+ "needRefresh": true/false
 }
 
-اختَر CATEGORY واحدة فقط حسب النية وليس الكلمات فقط.
+القواعد:
+- إذا العميل غيّر الموضوع → needRefresh = true
+- إذا نفس الطلب → false
+- اختر category بناءً على المعنى وليس الكلمات
 
 المنتجات:
 ${catalog}
@@ -172,37 +176,35 @@ ${catalog}
     }
 
     // =========================
-    // SMART FILTER (NO CHAOS)
+    // SMART PRODUCT ENGINE (NO RULES, NO KEYWORDS)
     // =========================
-    if (parsed.recommend) {
+    if (parsed.category) {
 
-      const category = parsed.category || "عام";
+      const needRefresh = parsed.needRefresh || false;
 
-      let used = session.shownProducts || [];
+      let used = needRefresh ? [] : (session.shownProducts || []);
 
       let filtered = products.filter(p =>
-        p.category === category &&
+        p.category === parsed.category &&
         p.image &&
         p.url &&
         !used.includes(p.id)
       );
 
-      // إذا خلصت المنتجات نعيد الدورة
+      // لو ما فيه → نعيد تعبئة بدون تكرار
       if (filtered.length === 0) {
         used = [];
-        session.shownProducts = [];
-
         filtered = products.filter(p =>
-          p.category === category &&
+          p.category === parsed.category &&
           p.image &&
           p.url
         );
       }
 
-      // بدون عشوائية مزعجة (اختيار ذكي ثابت)
       const selected = filtered.slice(0, 3);
 
       selected.forEach(p => used.push(p.id));
+
       session.shownProducts = used;
 
       return res.json({
@@ -220,59 +222,4 @@ ${catalog}
   } catch (err) {
     console.log("❌ CHAT ERROR:", err);
 
-    return res.json({
-      reply: "يوجد خطأ مؤقت",
-      recommend: false
-    });
-  }
-});
-
-// =========================
-// REVIEW (TELEGRAM)
-// =========================
-app.post("/review", async (req, res) => {
-  try {
-
-    const review = {
-      orderId: req.body.orderId || "غير معروف",
-      customer: req.body.customer || "عميل",
-      rating: req.body.rating || 0,
-      date: new Date().toISOString()
-    };
-
-    let reviews = [];
-
-    try {
-      reviews = JSON.parse(fs.readFileSync("./reviews.json", "utf8"));
-    } catch {}
-
-    reviews.push(review);
-
-    fs.writeFileSync("./reviews.json", JSON.stringify(reviews, null, 2));
-
-    await sendTelegramMessage(`
-⭐ تقييم جديد
-
-📦 الطلب: ${review.orderId}
-👤 العميل: ${review.customer}
-⭐ التقييم: ${review.rating}/5
-📅 التاريخ: ${review.date}
-`);
-
-    res.json({ success: true });
-
-  } catch (err) {
-    console.log("❌ REVIEW ERROR:", err);
-
-    res.json({ success: false });
-  }
-});
-
-// =========================
-// START
-// =========================
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log("🌸 SERVER RUNNING:", PORT);
-});
+   
