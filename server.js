@@ -66,6 +66,9 @@ try {
 
 رابط المتجر:
 https://gifts-village.sa
+
+موقع المحل:
+القطيف حي الشاطئ https://maps.app.goo.gl/qeaok53LXybK1AyTA
 `;
 
 }
