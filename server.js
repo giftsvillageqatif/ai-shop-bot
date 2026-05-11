@@ -43,14 +43,16 @@ let products = [];
 let sessions = {};
 
 // =========================
-// CATEGORY
+// SMART CATEGORY (AI FRIENDLY)
 // =========================
-function autoCategory(title, desc) {
+function autoCategory(title = "", desc = "") {
+
   const text = (title + " " + (desc || "")).toLowerCase();
 
-  if (/(دمية|باربي|مكياج|اكسسوارات|بنات)/.test(text)) return "بنات";
-  if (/(سيارة|روبوت|مسدس|اولاد|أولاد)/.test(text)) return "أولاد";
-  if (/(lego|تعليمي|ألغاز|أطفال)/.test(text)) return "أطفال";
+  if (/(بنات|باربي|مكياج|اكسسوارات|عطر|شنطة)/.test(text)) return "بنات";
+  if (/(سيارة|روبوت|مسدس|طائرة|اولاد|أولاد)/.test(text)) return "اولاد";
+  if (/(مواليد|baby|newborn|infant|رضيع)/.test(text)) return "مواليد";
+  if (/(جماعي|board|لعبة جماعية|تحدي)/.test(text)) return "جماعي";
 
   return "عام";
 }
@@ -91,7 +93,7 @@ app.get("/", (req, res) => {
 });
 
 // =========================
-// CHAT
+// CHAT (SMART INTENT AI)
 // =========================
 app.post("/chat", async (req, res) => {
   try {
@@ -114,24 +116,30 @@ app.post("/chat", async (req, res) => {
     });
 
     const catalog = products.map(p =>
-      `ID:${p.id} | ${p.title} | ${p.category} | ${p.price}`
+      `ID:${p.id} | ${p.title} | ${p.category}`
     ).join("\n");
 
+    // =========================
+    // 🔥 AI UNDERSTANDING INTENT
+    // =========================
     const ai = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
-      temperature: 0.6,
+      temperature: 0.4,
       messages: [
         {
           role: "system",
           content: `
-أنت ياسمين 🌸 متجر قرية الهدايا
+أنت نظام تصنيف منتجات لمتجر.
 
-إذا يحتاج منتجات أرجع JSON:
+حلل طلب العميل وأرجع JSON فقط بهذا الشكل:
+
 {
- "reply":"...",
- "recommend":true,
- "product_query":"..."
+ "reply":"رد مختصر",
+ "category":"بنات | اولاد | مواليد | جماعي | عام",
+ "recommend":true
 }
+
+اختَر CATEGORY واحدة فقط حسب النية وليس الكلمات فقط.
 
 المنتجات:
 ${catalog}
@@ -148,7 +156,7 @@ ${catalog}
       content
     });
 
-    let parsed = null;
+    let parsed;
 
     try {
       parsed = JSON.parse(content.replace(/```json/g, "").replace(/```/g, "").trim());
@@ -164,32 +172,37 @@ ${catalog}
     }
 
     // =========================
-    // PRODUCTS (NO DUPLICATE FIX)
+    // SMART FILTER (NO CHAOS)
     // =========================
     if (parsed.recommend) {
+
+      const category = parsed.category || "عام";
 
       let used = session.shownProducts || [];
 
       let filtered = products.filter(p =>
+        p.category === category &&
         p.image &&
         p.url &&
         !used.includes(p.id)
       );
 
-      // إذا انتهت المنتجات نعيد التصفير
+      // إذا خلصت المنتجات نعيد الدورة
       if (filtered.length === 0) {
         used = [];
         session.shownProducts = [];
-        filtered = products.filter(p => p.image && p.url);
+
+        filtered = products.filter(p =>
+          p.category === category &&
+          p.image &&
+          p.url
+        );
       }
 
-      // عشوائية عشان ما يكرر نفس الترتيب
-      const selected = filtered
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 3);
+      // بدون عشوائية مزعجة (اختيار ذكي ثابت)
+      const selected = filtered.slice(0, 3);
 
       selected.forEach(p => used.push(p.id));
-
       session.shownProducts = used;
 
       return res.json({
@@ -215,7 +228,7 @@ ${catalog}
 });
 
 // =========================
-// REVIEW (TELEGRAM ONLY)
+// REVIEW (TELEGRAM)
 // =========================
 app.post("/review", async (req, res) => {
   try {
