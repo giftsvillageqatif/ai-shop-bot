@@ -192,6 +192,9 @@ app.post("/chat", async function (req, res) {
     const message =
       req.body.message || "";
 
+    const isAdmin =
+  message.startsWith("[ADMIN24]");
+    
     if (!sessions[sessionId]) {
 
       sessions[sessionId] = {
@@ -205,6 +208,32 @@ app.post("/chat", async function (req, res) {
     const session =
       sessions[sessionId];
 
+    if (isAdmin) {
+  session.adminMode = true;
+  return res.json({ reply: "تم تفعيل وضع المدير" });
+}
+
+  session.history.push({
+
+    role: "system",
+
+    content:
+      "تعليمات جديدة من مدير المتجر: " +
+      message.replace("[ADMIN24]", "").trim()
+
+  });
+
+  return res.json({
+
+    reply:
+      "🌸 تم تحديث التعليمات بنجاح",
+
+    recommend: false
+
+  });
+
+}
+    
     session.history.push({
 
       role: "user",
