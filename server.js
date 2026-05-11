@@ -27,7 +27,6 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// تحقق من الإيميل عند التشغيل
 transporter.verify((err) => {
   if (err) {
     console.log("❌ EMAIL ERROR:", err.message);
@@ -41,6 +40,27 @@ transporter.verify((err) => {
 // =========================
 let products = [];
 let sessions = {};
+
+// =========================
+// AUTO CATEGORY (NO EXCEL NEEDED)
+// =========================
+function autoCategory(title, desc) {
+  const text = (title + " " + desc).toLowerCase();
+
+  if (text.includes("باربي") || text.includes("دمية") || text.includes("makeup") || text.includes("مكياج")) {
+    return "بنات";
+  }
+
+  if (text.includes("سيارة") || text.includes("طيارة") || text.includes("روبوت") || text.includes("مسدس")) {
+    return "أولاد";
+  }
+
+  if (text.includes("lego") || text.includes("تعليمي") || text.includes("ألغاز") || text.includes("مكعبات")) {
+    return "أطفال";
+  }
+
+  return "عام";
+}
 
 // =========================
 // LOAD PRODUCTS
@@ -57,10 +77,13 @@ function loadProducts() {
       description: p.description || "",
       price: p.price || "",
       image: String(p.image || "").split(",")[0].trim(),
-      url: p.url || ""
+      url: p.url || "",
+
+      category: autoCategory(p.name || "", p.description || "")
     }));
 
     console.log("✅ PRODUCTS LOADED:", products.length);
+
   } catch (err) {
     console.log("❌ PRODUCTS ERROR:", err);
   }
@@ -69,17 +92,11 @@ function loadProducts() {
 loadProducts();
 
 // =========================
-// ROOT
-// =========================
-app.get("/", (req, res) => {
-  res.send("🌸 Yasmin AI Running");
-});
-
-// =========================
-// CHAT FIXED (STABLE + NO BROKEN PRODUCTS)
+// CHAT
 // =========================
 app.post("/chat", async (req, res) => {
   try {
+
     const sessionId = req.body.sessionId || "guest";
     const message = req.body.message || "";
 
@@ -97,14 +114,8 @@ app.post("/chat", async (req, res) => {
       content: message
     });
 
-    // 📦 catalog (واضح للذكاء)
     const catalog = products.map(p =>
-      `ID:${p.id}
-NAME:${p.title}
-PRICE:${p.price}
-HAS_IMAGE:${!!p.image}
-HAS_URL:${!!p.url}
-`
+      `ID:${p.id} | ${p.title} | ${p.category} | ${p.price}`
     ).join("\n");
 
     const ai = await openai.chat.completions.create({
@@ -120,10 +131,10 @@ HAS_URL:${!!p.url}
 {
  "reply":"...",
  "recommend":true,
- "product_query":"..."
+ "product_query":"بنات / أولاد / أطفال"
 }
 
-غير كذا رد نص طبيعي.
+غير كذا رد طبيعي نص فقط.
 
 المنتجات:
 ${catalog}
@@ -154,7 +165,7 @@ ${catalog}
     }
 
     // =========================
-    // NORMAL TEXT RESPONSE
+    // NORMAL RESPONSE
     // =========================
     if (!parsed) {
       return res.json({
@@ -164,38 +175,43 @@ ${catalog}
     }
 
     // =========================
-    // PRODUCT SYSTEM (NO DUPLICATES + ONLY VALID PRODUCTS)
+    // SMART FILTER (FIXED CATEGORY)
     // =========================
     if (parsed.recommend) {
 
+      const query = (parsed.product_query || "").toLowerCase();
+
+      let filtered = products.filter(p => {
+
+        const text = (p.title + " " + p.description + " " + p.category).toLowerCase();
+
+        if (query.includes("بنات")) return text.includes("بنات");
+        if (query.includes("اولاد") || query.includes("أولاد")) return text.includes("أولاد");
+        if (query.includes("أطفال")) return text.includes("أطفال");
+
+        return true;
+      });
+
+      // منع تكرار داخل المحادثة
       const used = session.shownProducts;
       session.shownProducts = used;
 
-      const available = products.filter(p =>
-        !used.includes(p.id) &&
-        p.image &&
-        p.url
+      filtered = filtered.filter(p =>
+        !used.includes(p.id) && p.image && p.url
       );
 
-      const pool =
-        available.length > 0
-          ? available
-          : products.filter(p => p.image && p.url);
+      if (filtered.length === 0) {
+        filtered = products.filter(p => p.image && p.url);
+      }
 
-      const selected = pool.slice(0, 3);
+      const selected = filtered.slice(0, 3);
 
       selected.forEach(p => used.push(p.id));
 
       return res.json({
         reply: parsed.reply,
         recommend: true,
-        products: selected.map(p => ({
-          id: p.id,
-          title: p.title,
-          price: p.price,
-          image: p.image,
-          url: p.url
-        }))
+        products: selected
       });
     }
 
@@ -215,10 +231,11 @@ ${catalog}
 });
 
 // =========================
-// REVIEW + EMAIL
+// REVIEW (EMAIL FIXED)
 // =========================
 app.post("/review", async (req, res) => {
   try {
+
     const review = {
       orderId: req.body.orderId || "غير معروف",
       customer: req.body.customer || "عميل",
@@ -227,6 +244,7 @@ app.post("/review", async (req, res) => {
     };
 
     let reviews = [];
+
     try {
       reviews = JSON.parse(fs.readFileSync("./reviews.json", "utf8"));
     } catch {}
