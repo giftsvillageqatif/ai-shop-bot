@@ -17,16 +17,19 @@ const openai = new OpenAI({
 });
 
 // =========================
-// EMAIL
+// EMAIL (FIXED SMTP)
 // =========================
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true, // مهم جدًا
   auth: {
     user: "giftsvillageqatif@gmail.com",
-    pass: process.env.GMAIL_PASS
+    pass: process.env.GMAIL_PASS // لازم App Password
   }
 });
 
+// اختبار الاتصال عند التشغيل
 transporter.verify((err) => {
   if (err) {
     console.log("❌ EMAIL ERROR:", err.message);
@@ -42,26 +45,14 @@ let products = [];
 let sessions = {};
 
 // =========================
-// AUTO CATEGORY (NO DESCRIPTION REQUIRED)
+// AUTO CATEGORY (بدون وصف)
 // =========================
 function autoCategory(title, desc) {
-
   const text = (title + " " + (desc || "")).toLowerCase();
 
-  // بنات
-  if (/(دمية|باربي|مكياج|اكسسوارات|شنطة|عطر|بنات)/.test(text)) {
-    return "بنات";
-  }
-
-  // أولاد
-  if (/(سيارة|طائرة|روبوت|مسدس|اولاد|أولاد)/.test(text)) {
-    return "أولاد";
-  }
-
-  // أطفال
-  if (/(lego|تعليمي|ألغاز|مكعبات|أطفال)/.test(text)) {
-    return "أطفال";
-  }
+  if (/(دمية|باربي|مكياج|اكسسوارات|بنات)/.test(text)) return "بنات";
+  if (/(سيارة|روبوت|مسدس|اولاد|أولاد)/.test(text)) return "أولاد";
+  if (/(lego|تعليمي|ألغاز|أطفال)/.test(text)) return "أطفال";
 
   return "عام";
 }
@@ -102,7 +93,7 @@ app.get("/", (req, res) => {
 });
 
 // =========================
-// CHAT (FULL FIXED)
+// CHAT
 // =========================
 app.post("/chat", async (req, res) => {
   try {
@@ -137,14 +128,14 @@ app.post("/chat", async (req, res) => {
           content: `
 أنتِ ياسمين 🌸 متجر قرية الهدايا
 
-إذا العميل يحتاج منتجات → أرجع JSON:
+إذا احتاج العميل منتجات → أرجعي JSON:
 {
  "reply":"...",
  "recommend":true,
- "product_query":"بنات / أولاد / أطفال / عام"
+ "product_query":"بنات / أولاد / أطفال"
 }
 
-غير كذا رد طبيعي نص فقط.
+غير كذا رد طبيعي.
 
 المنتجات:
 ${catalog}
@@ -161,22 +152,14 @@ ${catalog}
       content
     });
 
-    // =========================
-    // SAFE PARSE
-    // =========================
     let parsed = null;
 
     try {
-      parsed = JSON.parse(
-        content.replace(/```json/g, "").replace(/```/g, "").trim()
-      );
+      parsed = JSON.parse(content.replace(/```json/g, "").replace(/```/g, "").trim());
     } catch {
       parsed = null;
     }
 
-    // =========================
-    // NORMAL RESPONSE
-    // =========================
     if (!parsed) {
       return res.json({
         reply: content,
@@ -185,7 +168,7 @@ ${catalog}
     }
 
     // =========================
-    // SMART FILTER (FULL SAFE)
+    // PRODUCTS FILTER
     // =========================
     if (parsed.recommend) {
 
@@ -208,7 +191,6 @@ ${catalog}
         return true;
       });
 
-      // منع التكرار
       const used = session.shownProducts;
       session.shownProducts = used;
 
@@ -232,7 +214,7 @@ ${catalog}
     }
 
     return res.json({
-      reply: parsed.reply || content,
+      reply: parsed.reply,
       recommend: false
     });
 
@@ -247,7 +229,7 @@ ${catalog}
 });
 
 // =========================
-// REVIEW (EMAIL STABLE)
+// REVIEW (EMAIL FIXED)
 // =========================
 app.post("/review", async (req, res) => {
   try {
