@@ -3,7 +3,6 @@ import cors from "cors";
 import xlsx from "xlsx";
 import fs from "fs";
 import OpenAI from "openai";
-import nodemailer from "nodemailer";
 
 const app = express();
 
@@ -17,48 +16,6 @@ app.use(cors());
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
-
-
-// =========================
-// 📧 EMAIL
-// =========================
-const transporter = nodemailer.createTransport({
-
-  service: "gmail",
-
-  auth: {
-
-    user:
-      "giftsvillageqatif@gmail.com",
-
-    pass:
-      process.env.GMAIL_PASS
-
-  }
-
-});
-
-
-// =========================
-// 📡 TELEGRAM (ADDED ONLY)
-// =========================
-async function sendTelegramMessage(text) {
-  try {
-    await fetch(
-      `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: process.env.TELEGRAM_CHAT_ID,
-          text: text
-        })
-      }
-    );
-  } catch (err) {
-    console.log("❌ TELEGRAM ERROR:", err.message);
-  }
-}
 
 
 // =========================
@@ -216,7 +173,7 @@ app.get("/", function (req, res) {
 
 
 // =========================
-// 💬 CHAT (UNCHANGED)
+// 💬 CHAT
 // =========================
 app.post("/chat", async function (req, res) {
 
@@ -359,6 +316,9 @@ ${catalog}
 
     }
 
+    // =========================
+    // 🛍 RECOMMEND
+    // =========================
     if (parsed.recommend) {
 
       const recAI =
@@ -483,7 +443,7 @@ ${catalog}
 
 
 // =========================
-// ⭐ REVIEW (EMAIL + TELEGRAM ADDED)
+// ⭐ REVIEW (EMAIL REMOVED بالكامل)
 // =========================
 app.post("/review", async function (req, res) {
 
@@ -533,43 +493,6 @@ app.post("/review", async function (req, res) {
         2
       )
 
-    );
-
-    // 📧 EMAIL (UNCHANGED)
-    await transporter.sendMail({
-
-      from:
-        "giftsvillageqatif@gmail.com",
-
-      to:
-        "giftsvillageqatif@gmail.com",
-
-      subject:
-        "⭐ تقييم جديد",
-
-      html: `
-
-<h2>تقييم جديد</h2>
-
-<p><b>رقم الطلب:</b> ${review.orderId}</p>
-
-<p><b>العميل:</b> ${review.customer}</p>
-
-<p><b>التقييم:</b> ${review.rating}/5</p>
-
-<p><b>التاريخ:</b> ${review.date}</p>
-
-`
-
-    });
-
-    // 📡 TELEGRAM ONLY ADDED HERE
-    await sendTelegramMessage(
-      `⭐ تقييم جديد
-📦 الطلب: ${review.orderId}
-👤 العميل: ${review.customer}
-⭐ التقييم: ${review.rating}/5
-📅 التاريخ: ${review.date}`
     );
 
     res.json({
