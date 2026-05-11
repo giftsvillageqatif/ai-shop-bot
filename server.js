@@ -27,7 +27,7 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// تأكيد الإيميل شغال
+// تحقق من الإيميل عند التشغيل
 transporter.verify((err) => {
   if (err) {
     console.log("❌ EMAIL ERROR:", err.message);
@@ -60,7 +60,7 @@ function loadProducts() {
       url: p.url || ""
     }));
 
-    console.log("✅ PRODUCTS:", products.length);
+    console.log("✅ PRODUCTS LOADED:", products.length);
   } catch (err) {
     console.log("❌ PRODUCTS ERROR:", err);
   }
@@ -76,7 +76,7 @@ app.get("/", (req, res) => {
 });
 
 // =========================
-// CHAT (FIXED STABLE)
+// CHAT FIXED (STABLE + NO BROKEN PRODUCTS)
 // =========================
 app.post("/chat", async (req, res) => {
   try {
@@ -86,7 +86,7 @@ app.post("/chat", async (req, res) => {
     if (!sessions[sessionId]) {
       sessions[sessionId] = {
         history: [],
-        shownProducts: [] // 👈 منع التكرار
+        shownProducts: []
       };
     }
 
@@ -97,8 +97,14 @@ app.post("/chat", async (req, res) => {
       content: message
     });
 
+    // 📦 catalog (واضح للذكاء)
     const catalog = products.map(p =>
-      `ID:${p.id} | ${p.title} | ${p.price}`
+      `ID:${p.id}
+NAME:${p.title}
+PRICE:${p.price}
+HAS_IMAGE:${!!p.image}
+HAS_URL:${!!p.url}
+`
     ).join("\n");
 
     const ai = await openai.chat.completions.create({
@@ -110,7 +116,7 @@ app.post("/chat", async (req, res) => {
           content: `
 أنتِ ياسمين 🌸 متجر قرية الهدايا
 
-إذا العميل يحتاج اقتراح → ارجع:
+إذا احتاج العميل منتجات → أرجع JSON:
 {
  "reply":"...",
  "recommend":true,
@@ -148,7 +154,7 @@ ${catalog}
     }
 
     // =========================
-    // NORMAL RESPONSE
+    // NORMAL TEXT RESPONSE
     // =========================
     if (!parsed) {
       return res.json({
@@ -158,25 +164,38 @@ ${catalog}
     }
 
     // =========================
-    // PRODUCT LOGIC (NO REPEATS)
+    // PRODUCT SYSTEM (NO DUPLICATES + ONLY VALID PRODUCTS)
     // =========================
     if (parsed.recommend) {
 
       const used = session.shownProducts;
+      session.shownProducts = used;
 
-      const available = products.filter(p => !used.includes(p.id));
+      const available = products.filter(p =>
+        !used.includes(p.id) &&
+        p.image &&
+        p.url
+      );
 
-      const pool = available.length > 0 ? available : products;
+      const pool =
+        available.length > 0
+          ? available
+          : products.filter(p => p.image && p.url);
 
       const selected = pool.slice(0, 3);
 
-      // حفظ المنتجات اللي انعرضت
       selected.forEach(p => used.push(p.id));
 
       return res.json({
         reply: parsed.reply,
         recommend: true,
-        products: selected
+        products: selected.map(p => ({
+          id: p.id,
+          title: p.title,
+          price: p.price,
+          image: p.image,
+          url: p.url
+        }))
       });
     }
 
@@ -196,7 +215,7 @@ ${catalog}
 });
 
 // =========================
-// REVIEW + EMAIL FIXED
+// REVIEW + EMAIL
 // =========================
 app.post("/review", async (req, res) => {
   try {
@@ -219,7 +238,7 @@ app.post("/review", async (req, res) => {
     console.log("📩 Sending email...");
 
     if (!process.env.GMAIL_PASS) {
-      console.log("❌ GMAIL_PASS MISSING");
+      console.log("❌ GMAIL_PASS missing");
     }
 
     const info = await transporter.sendMail({
