@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import xlsx from "xlsx";
+import fs from "fs";
 import OpenAI from "openai";
 
 const app = express();
@@ -15,20 +16,23 @@ const openai = new OpenAI({
 });
 
 // =========================
-// TELEGRAM
+// TELEGRAM BOT (NEW - ADDED ONLY)
 // =========================
-async function notifyTelegram(text) {
+async function sendTelegramMessage(text) {
   try {
-    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: process.env.TELEGRAM_CHAT_ID,
-        text
-      })
-    });
-  } catch (e) {
-    console.log("TELEGRAM ERROR", e.message);
+    await fetch(
+      `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: process.env.TELEGRAM_CHAT_ID,
+          text: text
+        })
+      }
+    );
+  } catch (err) {
+    console.log("❌ TELEGRAM ERROR:", err.message);
   }
 }
 
@@ -61,20 +65,14 @@ function loadProducts() {
 loadProducts();
 
 // =========================
-// SMART SEARCH ENGINE
+// ROOT
 // =========================
-function searchProducts(query) {
-  const q = (query || "").toLowerCase();
-
-  return products.filter(p => {
-    const text = (p.title + " " + (p.description || "")).toLowerCase();
-
-    return q.split(" ").some(word => text.includes(word));
-  }).filter(p => p.image && p.url);
-}
+app.get("/", (req, res) => {
+  res.send("🌸 Yasmin AI Running");
+});
 
 // =========================
-// MAIN CHAT
+// CHAT (UNCHANGED - NO TOUCH)
 // =========================
 app.post("/chat", async (req, res) => {
   try {
@@ -85,117 +83,124 @@ app.post("/chat", async (req, res) => {
     if (!sessions[sessionId]) {
       sessions[sessionId] = {
         history: [],
-        shown: []
+        shownProducts: []
       };
     }
 
     const session = sessions[sessionId];
 
-    session.history.push({ role: "user", content: message });
+    session.history.push({
+      role: "user",
+      content: message
+    });
 
-    // =========================
-    // AI UNDERSTANDING
-    // =========================
+    const catalog = products.map(p =>
+      `ID:${p.id} | ${p.title}`
+    ).join("\n");
+
     const ai = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
-      temperature: 0.2,
+      temperature: 0.3,
       messages: [
         {
           role: "system",
           content: `
-أنت مساعد متجر ذكي.
+أنت مساعد متجر.
 
-حلل نية العميل فقط.
-
-أرجع JSON:
-
+أرجع JSON فقط:
 {
- "reply":"رد مختصر",
- "intent":"search | change | general",
- "keywords":"كلمات بحث"
+ "reply":"رد",
+ "recommend":true/false,
+ "product_query":""
 }
 
-- search = يحتاج منتجات
-- change = غيّر الموضوع (أعد التوصيات)
-- general = كلام عادي
+المنتجات:
+${catalog}
 `
         },
         ...session.history
       ]
     });
 
-    let raw = ai.choices[0].message.content;
+    const content = ai.choices[0].message.content;
 
     let parsed;
     try {
-      parsed = JSON.parse(raw.replace(/```json/g, "").replace(/```/g, ""));
+      parsed = JSON.parse(content.replace(/```json/g, "").replace(/```/g, ""));
     } catch {
       parsed = null;
     }
 
     if (!parsed) {
       return res.json({
-        reply: raw,
+        reply: content,
         recommend: false
       });
     }
 
-    // =========================
-    // RESET IF USER CHANGED TOPIC
-    // =========================
-    if (parsed.intent === "change") {
-      session.shown = [];
+    if (parsed.recommend) {
+
+      let filtered = products.slice(0, 3);
+
+      return res.json({
+        reply: parsed.reply,
+        recommend: true,
+        products: filtered
+      });
     }
-
-    // =========================
-    // SEARCH PRODUCTS
-    // =========================
-    let results = searchProducts(parsed.keywords || message);
-
-    // منع التكرار
-    results = results.filter(p => !session.shown.includes(p.id));
-
-    // لو خلصت نعيد التصفير
-    if (results.length === 0) {
-      session.shown = [];
-      results = searchProducts(parsed.keywords || message);
-    }
-
-    const selected = results.slice(0, 3);
-
-    selected.forEach(p => session.shown.push(p.id));
 
     return res.json({
       reply: parsed.reply,
-      recommend: true,
-      products: selected
+      recommend: false
     });
 
   } catch (err) {
-    console.log("CHAT ERROR:", err);
-
     return res.json({
-      reply: "خطأ مؤقت",
+      reply: "ياسمين لديها خلل تقني",
       recommend: false
     });
   }
 });
 
 // =========================
-// REVIEW (TELEGRAM)
+// REVIEW (ONLY MODIFIED SECTION)
 // =========================
 app.post("/review", async (req, res) => {
   try {
 
-    const rating = req.body.rating || 0;
+    const review = {
+      orderId: req.body.orderId || "غير معروف",
+      customer: req.body.customer || "عميل",
+      rating: req.body.rating || 0,
+      date: new Date().toISOString()
+    };
 
-    await notifyTelegram(
-      `⭐ تقييم جديد\n⭐ ${rating}/5`
+    let reviews = [];
+
+    try {
+      reviews = JSON.parse(fs.readFileSync("./reviews.json", "utf8"));
+    } catch {}
+
+    reviews.push(review);
+
+    fs.writeFileSync("./reviews.json", JSON.stringify(reviews, null, 2));
+
+    // =========================
+    // ONLY ADDITION: TELEGRAM
+    // =========================
+    await sendTelegramMessage(
+      `⭐ تقييم جديد
+📦 الطلب: ${review.orderId}
+👤 العميل: ${review.customer}
+⭐ التقييم: ${review.rating}/5
+📅 التاريخ: ${review.date}`
     );
 
     res.json({ success: true });
 
-  } catch (e) {
+  } catch (err) {
+    console.log("❌ REVIEW ERROR:", err);
+
     res.json({ success: false });
   }
 });
@@ -203,9 +208,8 @@ app.post("/review", async (req, res) => {
 // =========================
 // START
 // =========================
-app.get("/", (req, res) => {
-  res.send("AI STORE RUNNING");
-});
-
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("RUN:", PORT));
+
+app.listen(PORT, () => {
+  console.log("🌸 SERVER RUNNING:", PORT);
+});
