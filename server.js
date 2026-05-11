@@ -3,7 +3,6 @@ import cors from "cors";
 import xlsx from "xlsx";
 import fs from "fs";
 import OpenAI from "openai";
-import nodemailer from "nodemailer";
 
 const app = express();
 app.use(express.json({ limit: "10mb" }));
@@ -17,26 +16,25 @@ const openai = new OpenAI({
 });
 
 // =========================
-// EMAIL (FIXED SMTP)
+// TELEGRAM (ADDED ONLY)
 // =========================
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true, // مهم جدًا
-  auth: {
-    user: "giftsvillageqatif@gmail.com",
-    pass: process.env.GMAIL_PASS // لازم App Password
+async function sendTelegramMessage(text) {
+  try {
+    await fetch(
+      `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: process.env.TELEGRAM_CHAT_ID,
+          text: text
+        })
+      }
+    );
+  } catch (err) {
+    console.log("❌ TELEGRAM ERROR:", err.message);
   }
-});
-
-// اختبار الاتصال عند التشغيل
-transporter.verify((err) => {
-  if (err) {
-    console.log("❌ EMAIL ERROR:", err.message);
-  } else {
-    console.log("📧 EMAIL READY");
-  }
-});
+}
 
 // =========================
 // DATA
@@ -229,7 +227,7 @@ ${catalog}
 });
 
 // =========================
-// REVIEW (EMAIL FIXED)
+// REVIEW (TELEGRAM ONLY)
 // =========================
 app.post("/review", async (req, res) => {
   try {
@@ -251,20 +249,16 @@ app.post("/review", async (req, res) => {
 
     fs.writeFileSync("./reviews.json", JSON.stringify(reviews, null, 2));
 
-    const info = await transporter.sendMail({
-      from: "giftsvillageqatif@gmail.com",
-      to: "24hmood.24@gmail.com",
-      subject: "⭐ تقييم جديد",
-      html: `
-        <h2>تقييم جديد</h2>
-        <p>الطلب: ${review.orderId}</p>
-        <p>العميل: ${review.customer}</p>
-        <p>التقييم: ${review.rating}/5</p>
-        <p>التاريخ: ${review.date}</p>
-      `
-    });
-
-    console.log("📧 EMAIL SENT:", info.messageId);
+    // =========================
+    // TELEGRAM NOTIFICATION
+    // =========================
+    await sendTelegramMessage(
+      `⭐ تقييم جديد
+📦 الطلب: ${review.orderId}
+👤 العميل: ${review.customer}
+⭐ التقييم: ${review.rating}/5
+📅 التاريخ: ${review.date}`
+    );
 
     res.json({ success: true });
 
