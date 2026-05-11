@@ -3,6 +3,7 @@ import cors from "cors";
 import xlsx from "xlsx";
 import fs from "fs";
 import OpenAI from "openai";
+import nodemailer from "nodemailer";
 
 const app = express();
 
@@ -10,56 +11,84 @@ app.use(express.json({ limit: "10mb" }));
 app.use(cors());
 
 
-// 🔑 OpenAI
+// =========================
+// 🔑 OPENAI
+// =========================
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
 
-// 📦 المنتجات
+// =========================
+// 📧 EMAIL
+// =========================
+const transporter = nodemailer.createTransport({
+
+  service: "gmail",
+
+  auth: {
+
+    user:
+      "giftsvillageqatif@gmail.com",
+
+    pass:
+      process.env.GMAIL_PASS
+
+  }
+
+});
+
+
+// =========================
+// 📦 PRODUCTS
+// =========================
 let products = [];
 
 
-// 💬 الجلسات
+// =========================
+// 💬 SESSIONS
+// =========================
 let sessions = {};
 
 
-// 🏪 معلومات المتجر
+// =========================
+// 🏪 STORE INFO
+// =========================
 let storeKnowledge = "";
 
 try {
 
-  storeKnowledge = fs.readFileSync(
-    "./store_knowledge.txt",
-    "utf8"
-  );
+  storeKnowledge =
+    fs.readFileSync(
+      "./store_knowledge.txt",
+      "utf8"
+    );
 
 } catch {
 
   storeKnowledge = `
-اسم المتجر: قرية الهدايا
-
-المتجر متخصص في:
-الهدايا - الأطفال - المواليد - المناسبات.
+اسم المتجر:
+قرية الهدايا
 
 الشحن:
-خلال يوم عمل واحد لمناطق القطيف وضواحيها.
-داخل السعودية خلال 2-5 أيام.
+2-5 أيام داخل السعودية.
 
 الدفع:
 مدى - فيزا - أبل باي.
 
 الاستبدال:
-يحق للعميل استبدال المنتجات خلال (3) أيام من تاريخ الاستلام.
+خلال 3 أيام.
 
 الاسترجاع:
-يحق للعميل استرجاع المنتجات خلال (1) أيام من تاريخ الاستلام.
+خلال يوم واحد.
 `;
 
 }
 
 
-// 📦 تحميل المنتجات
+// =========================
+// 📦 LOAD PRODUCTS
+// =========================
 function loadProducts() {
 
   try {
@@ -82,6 +111,12 @@ function loadProducts() {
     products =
       data.map(function (p, i) {
 
+        // ✅ إزالة صور الألوان
+        let image =
+          String(
+            p.image || ""
+          ).split(",")[0].trim();
+
         return {
 
           id: i,
@@ -96,7 +131,7 @@ function loadProducts() {
             p.price || "",
 
           image:
-            p.image || "",
+            image,
 
           url:
             p.url || ""
@@ -106,18 +141,16 @@ function loadProducts() {
       });
 
     console.log(
-      "✅ Products Loaded:",
+      "✅ PRODUCTS:",
       products.length
     );
 
   } catch (err) {
 
     console.log(
-      "❌ Excel Error:",
+      "❌ EXCEL ERROR:",
       err
     );
-
-    products = [];
 
   }
 
@@ -126,18 +159,19 @@ function loadProducts() {
 loadProducts();
 
 
-// 🧠 تنظيف JSON
+// =========================
+// 🧠 SAFE JSON
+// =========================
 function safeJson(text) {
 
   try {
 
-    let clean =
+    return JSON.parse(
       text
       .replace(/```json/g, "")
       .replace(/```/g, "")
-      .trim();
-
-    return JSON.parse(clean);
+      .trim()
+    );
 
   } catch {
 
@@ -148,17 +182,21 @@ function safeJson(text) {
 }
 
 
-// ❤️ الصفحة الرئيسية
+// =========================
+// ❤️ ROOT
+// =========================
 app.get("/", function (req, res) {
 
   res.send(
-    "🌸 Yasmin AI Store Running"
+    "🌸 Yasmin AI Running"
   );
 
 });
 
 
+// =========================
 // 💬 CHAT
+// =========================
 app.post("/chat", async function (req, res) {
 
   try {
@@ -170,11 +208,12 @@ app.post("/chat", async function (req, res) {
     const message =
       req.body.message || "";
 
-    // 🧠 إنشاء جلسة
     if (!sessions[sessionId]) {
 
       sessions[sessionId] = {
+
         history: []
+
       };
 
     }
@@ -182,7 +221,6 @@ app.post("/chat", async function (req, res) {
     const session =
       sessions[sessionId];
 
-    // 💬 حفظ رسالة العميل
     session.history.push({
 
       role: "user",
@@ -191,15 +229,15 @@ app.post("/chat", async function (req, res) {
 
     });
 
-    // 🛍 تجهيز المنتجات
+    // 📦 Catalog
     const catalog =
       products.map(function (p) {
 
         return `
 
-ID: ${p.id}
+ID:${p.id}
 
-اسم المنتج:
+الاسم:
 ${p.title}
 
 الوصف:
@@ -212,12 +250,12 @@ ${p.price}
 
       }).join("\n");
 
-
-    // 🧠 ياسمين
+    // 🤖 AI
     const ai =
       await openai.chat.completions.create({
 
-        model: "gpt-4.1-mini",
+        model:
+          "gpt-4.1-mini",
 
         temperature: 0.7,
 
@@ -229,37 +267,31 @@ ${p.price}
 
             content: `
 
-أنتِ ياسمين 🌸 موظفة متجر قرية الهدايا.
+أنتِ ياسمين 🌸
+
+موظفة ذكية داخل متجر قرية الهدايا.
 
 مهمتك:
-- مساعدة العملاء داخل المتجر فقط
-- الإجابة عن المنتجات
-- الإجابة عن الشحن والدفع والاستبدال
-- التفاعل الطبيعي مع العميل
-- فهم احتياج العميل
-- سؤال العميل عند الحاجة
-- ترشيح منتجات مناسبة
+- فهم العميل
+- التفاعل الطبيعي
+- اقتراح منتجات مناسبة
+- الإجابة عن أسئلة المتجر فقط
 
-ممنوع:
-- الخروج عن موضوع المتجر
-- الكلام عن السياسة أو البرمجة أو الدين
-- اختراع معلومات غير موجودة
-
-إذا فهمتِ العميل وتريدين ترشيح منتجات:
+إذا احتجتِ ترشيح منتجات:
 
 أرجعي JSON فقط:
 
 {
-  "reply": "ردك الطبيعي",
-  "recommend": true,
-  "product_query": "وصف ما يريده العميل"
+ "reply":"ردك",
+ "recommend":true,
+ "product_query":"وصف العميل"
 }
 
-إذا تحتاجين معلومات أكثر:
+إذا تحتاجين سؤال العميل:
 
 {
-  "reply": "سؤالك الطبيعي",
-  "recommend": false
+ "reply":"سؤالك",
+ "recommend":false
 }
 
 معلومات المتجر:
@@ -271,6 +303,7 @@ ${storeKnowledge}
 ${catalog}
 
 `
+
           },
 
           ...session.history
@@ -283,7 +316,6 @@ ${catalog}
       ai.choices[0]
       .message.content || "";
 
-    // 💬 حفظ رد ياسمين
     session.history.push({
 
       role: "assistant",
@@ -295,7 +327,6 @@ ${catalog}
     const parsed =
       safeJson(content);
 
-    // ❌ إذا فشل JSON
     if (!parsed) {
 
       return res.json({
@@ -309,16 +340,18 @@ ${catalog}
 
     }
 
-
-    // 🛍 ترشيح المنتجات
+    // =========================
+    // 🛍 RECOMMEND
+    // =========================
     if (parsed.recommend) {
 
       const recAI =
         await openai.chat.completions.create({
 
-          model: "gpt-4.1-mini",
+          model:
+            "gpt-4.1-mini",
 
-          temperature: 0.3,
+          temperature: 0.2,
 
           messages: [
 
@@ -328,14 +361,12 @@ ${catalog}
 
               content: `
 
-أنت نظام ترشيح منتجات ذكي.
+اختر أفضل 3 منتجات مناسبة فقط.
 
-اختر أفضل 3 منتجات فقط من القائمة.
-
-أرجع JSON فقط بهذا الشكل:
+أرجع JSON فقط:
 
 {
-  "products": [1,2,3]
+ "products":[1,2,3]
 }
 
 القائمة:
@@ -343,6 +374,7 @@ ${catalog}
 ${catalog}
 
 `
+
             },
 
             {
@@ -358,12 +390,11 @@ ${catalog}
 
         });
 
-      const recContent =
-        recAI.choices[0]
-        .message.content || "";
-
       const recParsed =
-        safeJson(recContent);
+        safeJson(
+          recAI.choices[0]
+          .message.content || ""
+        );
 
       let selected = [];
 
@@ -374,18 +405,14 @@ ${catalog}
 
         selected =
           products.filter(
-            function (p) {
-
-              return recParsed.products.indexOf(
+            p =>
+              recParsed.products.includes(
                 p.id
-              ) !== -1;
-
-            }
+              )
           );
 
       }
 
-      // 🔥 fallback
       if (
         selected.length === 0
       ) {
@@ -409,8 +436,6 @@ ${catalog}
 
     }
 
-
-    // 💬 فقط رد
     return res.json({
 
       reply:
@@ -423,14 +448,14 @@ ${catalog}
   } catch (err) {
 
     console.log(
-      "❌ SERVER ERROR:",
+      "❌ CHAT ERROR:",
       err
     );
 
     return res.json({
 
       reply:
-        "🌸 عذراً، يوجد خلل تقني مؤقت",
+        "🌸 يوجد خلل تقني مؤقت",
 
       recommend: false
 
@@ -441,12 +466,18 @@ ${catalog}
 });
 
 
-// ⭐ التقييمات
-app.post("/review", function (req, res) {
+// =========================
+// ⭐ REVIEW
+// =========================
+app.post("/review", async function (req, res) {
 
   try {
 
     const review = {
+
+      orderId:
+        req.body.orderId ||
+        "غير معروف",
 
       customer:
         req.body.customer ||
@@ -454,10 +485,6 @@ app.post("/review", function (req, res) {
 
       rating:
         req.body.rating || 0,
-
-      sessionId:
-        req.body.sessionId ||
-        "unknown",
 
       date:
         new Date().toISOString()
@@ -492,13 +519,44 @@ app.post("/review", function (req, res) {
 
     );
 
+    // 📧 EMAIL
+    await transporter.sendMail({
+
+      from:
+        "giftsvillageqatif@gmail.com",
+
+      to:
+        "giftsvillageqatif@gmail.com",
+
+      subject:
+        "⭐ تقييم جديد",
+
+      html: `
+
+<h2>تقييم جديد</h2>
+
+<p><b>رقم الطلب:</b> ${review.orderId}</p>
+
+<p><b>العميل:</b> ${review.customer}</p>
+
+<p><b>التقييم:</b> ${review.rating}/5</p>
+
+<p><b>التاريخ:</b> ${review.date}</p>
+
+`
+
+    });
+
     res.json({
       success: true
     });
 
   } catch (err) {
 
-    console.log(err);
+    console.log(
+      "❌ REVIEW ERROR:",
+      err
+    );
 
     res.json({
       success: false
@@ -509,14 +567,16 @@ app.post("/review", function (req, res) {
 });
 
 
-// 🚀 تشغيل السيرفر
+// =========================
+// 🚀 START
+// =========================
 const PORT =
   process.env.PORT || 3000;
 
 app.listen(PORT, function () {
 
   console.log(
-    "🌸 Yasmin AI Running On Port:",
+    "🌸 SERVER RUNNING:",
     PORT
   );
 
