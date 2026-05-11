@@ -253,7 +253,7 @@ app.post("/review", async (req, res) => {
 
     const info = await transporter.sendMail({
       from: "giftsvillageqatif@gmail.com",
-      to: "giftsvillageqatif@gmail.com",
+      to: "24hmood.24@gmail.com",
       subject: "⭐ تقييم جديد",
       html: `
         <h2>تقييم جديد</h2>
