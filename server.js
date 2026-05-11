@@ -60,6 +60,12 @@ try {
 
 الاسترجاع:
 خلال يوم واحد.
+
+رقم جوال المتجر:
+0558000539
+
+رابط المتجر:
+https://gifts-village.sa
 `;
 
 }
@@ -443,7 +449,26 @@ ${catalog}
 
 
 // =========================
-// ⭐ REVIEW (EMAIL REMOVED بالكامل)
+// 📡 TELEGRAM (ADDED ONLY - NO CHANGES ELSEWHERE)
+// =========================
+async function sendTelegramMessage(text) {
+  try {
+    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: process.env.TELEGRAM_CHAT_ID,
+        text
+      })
+    });
+  } catch (err) {
+    console.log("❌ TELEGRAM ERROR:", err.message);
+  }
+}
+
+
+// =========================
+// ⭐ REVIEW (ONLY ADD TELEGRAM CALL)
 // =========================
 app.post("/review", async function (req, res) {
 
@@ -493,6 +518,28 @@ app.post("/review", async function (req, res) {
         2
       )
 
+    );
+
+    // =========================
+    // NEW: GET CHAT HISTORY
+    // =========================
+    const sessionId = req.body.sessionId || "guest";
+    const history = sessions[sessionId]?.history || [];
+
+    const chatText = history.map(h => `${h.role}: ${h.content}`).join("\n");
+
+    // =========================
+    // NEW: TELEGRAM SEND
+    // =========================
+    await sendTelegramMessage(
+      `⭐ تقييم جديد
+📦 الطلب: ${review.orderId}
+👤 العميل: ${review.customer}
+⭐ التقييم: ${review.rating}/5
+📅 التاريخ: ${review.date}
+
+💬 المحادثة:
+${chatText}`
     );
 
     res.json({
