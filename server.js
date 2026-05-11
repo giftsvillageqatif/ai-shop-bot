@@ -16,7 +16,7 @@ const openai = new OpenAI({
 });
 
 // =========================
-// TELEGRAM (FREE NOTIFICATION)
+// TELEGRAM
 // =========================
 async function sendTelegramMessage(text) {
   try {
@@ -100,12 +100,18 @@ app.post("/chat", async (req, res) => {
     const message = req.body.message || "";
 
     if (!sessions[sessionId]) {
-      sessions[sessionId] = { history: [], shownProducts: [] };
+      sessions[sessionId] = {
+        history: [],
+        shownProducts: []
+      };
     }
 
     const session = sessions[sessionId];
 
-    session.history.push({ role: "user", content: message });
+    session.history.push({
+      role: "user",
+      content: message
+    });
 
     const catalog = products.map(p =>
       `ID:${p.id} | ${p.title} | ${p.category} | ${p.price}`
@@ -137,7 +143,10 @@ ${catalog}
 
     const content = ai.choices[0].message.content || "";
 
-    session.history.push({ role: "assistant", content });
+    session.history.push({
+      role: "assistant",
+      content
+    });
 
     let parsed = null;
 
@@ -148,17 +157,45 @@ ${catalog}
     }
 
     if (!parsed) {
-      return res.json({ reply: content, recommend: false });
+      return res.json({
+        reply: content,
+        recommend: false
+      });
     }
 
+    // =========================
+    // PRODUCTS (NO DUPLICATE FIX)
+    // =========================
     if (parsed.recommend) {
 
-      const filtered = products.filter(p => p.image && p.url).slice(0, 3);
+      let used = session.shownProducts || [];
+
+      let filtered = products.filter(p =>
+        p.image &&
+        p.url &&
+        !used.includes(p.id)
+      );
+
+      // إذا انتهت المنتجات نعيد التصفير
+      if (filtered.length === 0) {
+        used = [];
+        session.shownProducts = [];
+        filtered = products.filter(p => p.image && p.url);
+      }
+
+      // عشوائية عشان ما يكرر نفس الترتيب
+      const selected = filtered
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 3);
+
+      selected.forEach(p => used.push(p.id));
+
+      session.shownProducts = used;
 
       return res.json({
         reply: parsed.reply,
         recommend: true,
-        products: filtered
+        products: selected
       });
     }
 
@@ -178,7 +215,7 @@ ${catalog}
 });
 
 // =========================
-// REVIEW (TELEGRAM)
+// REVIEW (TELEGRAM ONLY)
 // =========================
 app.post("/review", async (req, res) => {
   try {
