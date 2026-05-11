@@ -1,0 +1,583 @@
+import express from "express";
+import cors from "cors";
+import xlsx from "xlsx";
+import fs from "fs";
+import OpenAI from "openai";
+import nodemailer from "nodemailer";
+
+const app = express();
+
+app.use(express.json({ limit: "10mb" }));
+app.use(cors());
+
+
+// =========================
+// 🔑 OPENAI
+// =========================
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+
+// =========================
+// 📧 EMAIL
+// =========================
+const transporter = nodemailer.createTransport({
+
+  service: "gmail",
+
+  auth: {
+
+    user:
+      "giftsvillageqatif@gmail.com",
+
+    pass:
+      process.env.GMAIL_PASS
+
+  }
+
+});
+
+
+// =========================
+// 📦 PRODUCTS
+// =========================
+let products = [];
+
+
+// =========================
+// 💬 SESSIONS
+// =========================
+let sessions = {};
+
+
+// =========================
+// 🏪 STORE INFO
+// =========================
+let storeKnowledge = "";
+
+try {
+
+  storeKnowledge =
+    fs.readFileSync(
+      "./store_knowledge.txt",
+      "utf8"
+    );
+
+} catch {
+
+  storeKnowledge = `
+اسم المتجر:
+قرية الهدايا
+
+الشحن:
+2-5 أيام داخل السعودية.
+
+الدفع:
+مدى - فيزا - أبل باي.
+
+الاستبدال:
+خلال 3 أيام.
+
+الاسترجاع:
+خلال يوم واحد.
+`;
+
+}
+
+
+// =========================
+// 📦 LOAD PRODUCTS
+// =========================
+function loadProducts() {
+
+  try {
+
+    const file =
+      xlsx.readFile(
+        "./products.xlsx"
+      );
+
+    const sheet =
+      file.Sheets[
+        file.SheetNames[0]
+      ];
+
+    const data =
+      xlsx.utils.sheet_to_json(
+        sheet
+      );
+
+    products =
+      data.map(function (p, i) {
+
+        // ✅ إزالة صور الألوان
+        let image =
+          String(
+            p.image || ""
+          ).split(",")[0].trim();
+
+        return {
+
+          id: i,
+
+          title:
+            p.name || "",
+
+          description:
+            p.description || "",
+
+          price:
+            p.price || "",
+
+          image:
+            image,
+
+          url:
+            p.url || ""
+
+        };
+
+      });
+
+    console.log(
+      "✅ PRODUCTS:",
+      products.length
+    );
+
+  } catch (err) {
+
+    console.log(
+      "❌ EXCEL ERROR:",
+      err
+    );
+
+  }
+
+}
+
+loadProducts();
+
+
+// =========================
+// 🧠 SAFE JSON
+// =========================
+function safeJson(text) {
+
+  try {
+
+    return JSON.parse(
+      text
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim()
+    );
+
+  } catch {
+
+    return null;
+
+  }
+
+}
+
+
+// =========================
+// ❤️ ROOT
+// =========================
+app.get("/", function (req, res) {
+
+  res.send(
+    "🌸 Yasmin AI Running"
+  );
+
+});
+
+
+// =========================
+// 💬 CHAT
+// =========================
+app.post("/chat", async function (req, res) {
+
+  try {
+
+    const sessionId =
+      req.body.sessionId ||
+      "guest";
+
+    const message =
+      req.body.message || "";
+
+    if (!sessions[sessionId]) {
+
+      sessions[sessionId] = {
+
+        history: []
+
+      };
+
+    }
+
+    const session =
+      sessions[sessionId];
+
+    session.history.push({
+
+      role: "user",
+
+      content: message
+
+    });
+
+    // 📦 Catalog
+    const catalog =
+      products.map(function (p) {
+
+        return `
+
+ID:${p.id}
+
+الاسم:
+${p.title}
+
+الوصف:
+${p.description}
+
+السعر:
+${p.price}
+
+`;
+
+      }).join("\n");
+
+    // 🤖 AI
+    const ai =
+      await openai.chat.completions.create({
+
+        model:
+          "gpt-4.1-mini",
+
+        temperature: 0.7,
+
+        messages: [
+
+          {
+
+            role: "system",
+
+            content: `
+
+أنتِ ياسمين 🌸
+
+موظفة ذكية داخل متجر قرية الهدايا.
+
+مهمتك:
+- فهم العميل
+- التفاعل الطبيعي
+- اقتراح منتجات مناسبة
+- الإجابة عن أسئلة المتجر فقط
+
+إذا احتجتِ ترشيح منتجات:
+
+أرجعي JSON فقط:
+
+{
+ "reply":"ردك",
+ "recommend":true,
+ "product_query":"وصف العميل"
+}
+
+إذا تحتاجين سؤال العميل:
+
+{
+ "reply":"سؤالك",
+ "recommend":false
+}
+
+معلومات المتجر:
+
+${storeKnowledge}
+
+المنتجات:
+
+${catalog}
+
+`
+
+          },
+
+          ...session.history
+
+        ]
+
+      });
+
+    const content =
+      ai.choices[0]
+      .message.content || "";
+
+    session.history.push({
+
+      role: "assistant",
+
+      content: content
+
+    });
+
+    const parsed =
+      safeJson(content);
+
+    if (!parsed) {
+
+      return res.json({
+
+        reply:
+          "🌸 ممكن توضّح لي أكثر؟",
+
+        recommend: false
+
+      });
+
+    }
+
+    // =========================
+    // 🛍 RECOMMEND
+    // =========================
+    if (parsed.recommend) {
+
+      const recAI =
+        await openai.chat.completions.create({
+
+          model:
+            "gpt-4.1-mini",
+
+          temperature: 0.2,
+
+          messages: [
+
+            {
+
+              role: "system",
+
+              content: `
+
+اختر أفضل 3 منتجات مناسبة فقط.
+
+أرجع JSON فقط:
+
+{
+ "products":[1,2,3]
+}
+
+القائمة:
+
+${catalog}
+
+`
+
+            },
+
+            {
+
+              role: "user",
+
+              content:
+                parsed.product_query
+
+            }
+
+          ]
+
+        });
+
+      const recParsed =
+        safeJson(
+          recAI.choices[0]
+          .message.content || ""
+        );
+
+      let selected = [];
+
+      if (
+        recParsed &&
+        recParsed.products
+      ) {
+
+        selected =
+          products.filter(
+            p =>
+              recParsed.products.includes(
+                p.id
+              )
+          );
+
+      }
+
+      if (
+        selected.length === 0
+      ) {
+
+        selected =
+          products.slice(0, 3);
+
+      }
+
+      return res.json({
+
+        reply:
+          parsed.reply,
+
+        recommend: true,
+
+        products:
+          selected
+
+      });
+
+    }
+
+    return res.json({
+
+      reply:
+        parsed.reply,
+
+      recommend: false
+
+    });
+
+  } catch (err) {
+
+    console.log(
+      "❌ CHAT ERROR:",
+      err
+    );
+
+    return res.json({
+
+      reply:
+        "🌸 يوجد خلل تقني مؤقت",
+
+      recommend: false
+
+    });
+
+  }
+
+});
+
+
+// =========================
+// ⭐ REVIEW
+// =========================
+app.post("/review", async function (req, res) {
+
+  try {
+
+    const review = {
+
+      orderId:
+        req.body.orderId ||
+        "غير معروف",
+
+      customer:
+        req.body.customer ||
+        "عميل",
+
+      rating:
+        req.body.rating || 0,
+
+      date:
+        new Date().toISOString()
+
+    };
+
+    let reviews = [];
+
+    try {
+
+      reviews =
+        JSON.parse(
+          fs.readFileSync(
+            "./reviews.json",
+            "utf8"
+          )
+        );
+
+    } catch {}
+
+    reviews.push(review);
+
+    fs.writeFileSync(
+
+      "./reviews.json",
+
+      JSON.stringify(
+        reviews,
+        null,
+        2
+      )
+
+    );
+
+    // 📧 EMAIL
+    await transporter.sendMail({
+
+      from:
+        "giftsvillageqatif@gmail.com",
+
+      to:
+        "giftsvillageqatif@gmail.com",
+
+      subject:
+        "⭐ تقييم جديد",
+
+      html: `
+
+<h2>تقييم جديد</h2>
+
+<p><b>رقم الطلب:</b> ${review.orderId}</p>
+
+<p><b>العميل:</b> ${review.customer}</p>
+
+<p><b>التقييم:</b> ${review.rating}/5</p>
+
+<p><b>التاريخ:</b> ${review.date}</p>
+
+`
+
+    });
+
+    res.json({
+      success: true
+    });
+
+  } catch (err) {
+
+    console.log(
+      "❌ REVIEW ERROR:",
+      err
+    );
+
+    res.json({
+      success: false
+    });
+
+  }
+
+});
+
+
+// =========================
+// 🚀 START
+// =========================
+const PORT =
+  process.env.PORT || 3000;
+
+app.listen(PORT, function () {
+
+  console.log(
+    "🌸 SERVER RUNNING:",
+    PORT
+  );
+
+});
