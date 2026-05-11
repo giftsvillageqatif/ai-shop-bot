@@ -3,7 +3,6 @@ import cors from "cors";
 import xlsx from "xlsx";
 import fs from "fs";
 import OpenAI from "openai";
-import nodemailer from "nodemailer";
 
 const app = express();
 app.use(express.json({ limit: "10mb" }));
@@ -17,26 +16,25 @@ const openai = new OpenAI({
 });
 
 // =========================
-// EMAIL (FIXED SMTP)
+// TELEGRAM (FREE NOTIFICATION)
 // =========================
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true, // مهم جدًا
-  auth: {
-    user: "giftsvillageqatif@gmail.com",
-    pass: process.env.GMAIL_PASS // لازم App Password
+async function sendTelegramMessage(text) {
+  try {
+    await fetch(
+      `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: process.env.TELEGRAM_CHAT_ID,
+          text
+        })
+      }
+    );
+  } catch (err) {
+    console.log("❌ TELEGRAM ERROR:", err);
   }
-});
-
-// اختبار الاتصال عند التشغيل
-transporter.verify((err) => {
-  if (err) {
-    console.log("❌ EMAIL ERROR:", err.message);
-  } else {
-    console.log("📧 EMAIL READY");
-  }
-});
+}
 
 // =========================
 // DATA
@@ -45,7 +43,7 @@ let products = [];
 let sessions = {};
 
 // =========================
-// AUTO CATEGORY (بدون وصف)
+// CATEGORY
 // =========================
 function autoCategory(title, desc) {
   const text = (title + " " + (desc || "")).toLowerCase();
@@ -102,18 +100,12 @@ app.post("/chat", async (req, res) => {
     const message = req.body.message || "";
 
     if (!sessions[sessionId]) {
-      sessions[sessionId] = {
-        history: [],
-        shownProducts: []
-      };
+      sessions[sessionId] = { history: [], shownProducts: [] };
     }
 
     const session = sessions[sessionId];
 
-    session.history.push({
-      role: "user",
-      content: message
-    });
+    session.history.push({ role: "user", content: message });
 
     const catalog = products.map(p =>
       `ID:${p.id} | ${p.title} | ${p.category} | ${p.price}`
@@ -126,16 +118,14 @@ app.post("/chat", async (req, res) => {
         {
           role: "system",
           content: `
-أنتِ ياسمين 🌸 متجر قرية الهدايا
+أنت ياسمين 🌸 متجر قرية الهدايا
 
-إذا احتاج العميل منتجات → أرجعي JSON:
+إذا يحتاج منتجات أرجع JSON:
 {
  "reply":"...",
  "recommend":true,
- "product_query":"بنات / أولاد / أطفال"
+ "product_query":"..."
 }
-
-غير كذا رد طبيعي.
 
 المنتجات:
 ${catalog}
@@ -147,10 +137,7 @@ ${catalog}
 
     const content = ai.choices[0].message.content || "";
 
-    session.history.push({
-      role: "assistant",
-      content
-    });
+    session.history.push({ role: "assistant", content });
 
     let parsed = null;
 
@@ -161,55 +148,17 @@ ${catalog}
     }
 
     if (!parsed) {
-      return res.json({
-        reply: content,
-        recommend: false
-      });
+      return res.json({ reply: content, recommend: false });
     }
 
-    // =========================
-    // PRODUCTS FILTER
-    // =========================
     if (parsed.recommend) {
 
-      const query = (parsed.product_query || "").toLowerCase();
-
-      let filtered = products.filter(p => {
-
-        const text = (
-          p.title +
-          " " +
-          (p.description || "") +
-          " " +
-          p.category
-        ).toLowerCase();
-
-        if (query.includes("بنات")) return text.includes("بنات");
-        if (query.includes("اولاد") || query.includes("أولاد")) return text.includes("أولاد");
-        if (query.includes("أطفال")) return text.includes("أطفال");
-
-        return true;
-      });
-
-      const used = session.shownProducts;
-      session.shownProducts = used;
-
-      filtered = filtered.filter(p =>
-        !used.includes(p.id) && p.image && p.url
-      );
-
-      if (filtered.length === 0) {
-        filtered = products.filter(p => p.image && p.url);
-      }
-
-      const selected = filtered.slice(0, 3);
-
-      selected.forEach(p => used.push(p.id));
+      const filtered = products.filter(p => p.image && p.url).slice(0, 3);
 
       return res.json({
         reply: parsed.reply,
         recommend: true,
-        products: selected
+        products: filtered
       });
     }
 
@@ -229,7 +178,7 @@ ${catalog}
 });
 
 // =========================
-// REVIEW (EMAIL FIXED)
+// REVIEW (TELEGRAM)
 // =========================
 app.post("/review", async (req, res) => {
   try {
@@ -251,30 +200,21 @@ app.post("/review", async (req, res) => {
 
     fs.writeFileSync("./reviews.json", JSON.stringify(reviews, null, 2));
 
-    const info = await transporter.sendMail({
-      from: "giftsvillageqatif@gmail.com",
-      to: "24hmood.24@gmail.com",
-      subject: "⭐ تقييم جديد",
-      html: `
-        <h2>تقييم جديد</h2>
-        <p>الطلب: ${review.orderId}</p>
-        <p>العميل: ${review.customer}</p>
-        <p>التقييم: ${review.rating}/5</p>
-        <p>التاريخ: ${review.date}</p>
-      `
-    });
+    await sendTelegramMessage(`
+⭐ تقييم جديد
 
-    console.log("📧 EMAIL SENT:", info.messageId);
+📦 الطلب: ${review.orderId}
+👤 العميل: ${review.customer}
+⭐ التقييم: ${review.rating}/5
+📅 التاريخ: ${review.date}
+`);
 
     res.json({ success: true });
 
   } catch (err) {
     console.log("❌ REVIEW ERROR:", err);
 
-    res.json({
-      success: false,
-      error: err.message
-    });
+    res.json({ success: false });
   }
 });
 
