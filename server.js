@@ -21,8 +21,8 @@ const openai = new OpenAI({
 // =========================
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
-  port: 587,
-  secure: fulse, // مهم جدًا
+  port: 465,
+  secure: true, // مهم جدًا
   auth: {
     user: "giftsvillageqatif@gmail.com",
     pass: process.env.GMAIL_PASS // لازم App Password
