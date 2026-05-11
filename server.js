@@ -1,7 +1,6 @@
 import express from "express";
 import cors from "cors";
 import xlsx from "xlsx";
-import fs from "fs";
 import OpenAI from "openai";
 
 const app = express();
@@ -18,21 +17,18 @@ const openai = new OpenAI({
 // =========================
 // TELEGRAM
 // =========================
-async function sendTelegramMessage(text) {
+async function notifyTelegram(text) {
   try {
-    await fetch(
-      `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: process.env.TELEGRAM_CHAT_ID,
-          text
-        })
-      }
-    );
-  } catch (err) {
-    console.log("❌ TELEGRAM ERROR:", err);
+    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: process.env.TELEGRAM_CHAT_ID,
+        text
+      })
+    });
+  } catch (e) {
+    console.log("TELEGRAM ERROR", e.message);
   }
 }
 
@@ -43,56 +39,42 @@ let products = [];
 let sessions = {};
 
 // =========================
-// CATEGORY SYSTEM (BASIC TAGGING ONLY)
-// =========================
-function autoCategory(title = "", desc = "") {
-  const text = (title + " " + (desc || "")).toLowerCase();
-
-  if (/(بنات|باربي|مكياج|عطر|شنطة)/.test(text)) return "بنات";
-  if (/(سيارة|روبوت|مسدس|اولاد|أولاد)/.test(text)) return "اولاد";
-  if (/(مواليد|baby|newborn|رضيع)/.test(text)) return "مواليد";
-  if (/(جماعي|board|لعبة|تحدي)/.test(text)) return "جماعي";
-
-  return "عام";
-}
-
-// =========================
 // LOAD PRODUCTS
 // =========================
 function loadProducts() {
-  try {
-    const file = xlsx.readFile("./products.xlsx");
-    const sheet = file.Sheets[file.SheetNames[0]];
-    const data = xlsx.utils.sheet_to_json(sheet);
+  const file = xlsx.readFile("./products.xlsx");
+  const sheet = file.Sheets[file.SheetNames[0]];
+  const data = xlsx.utils.sheet_to_json(sheet);
 
-    products = data.map((p, i) => ({
-      id: i,
-      title: p.name || "",
-      description: p.description || "",
-      price: p.price || "",
-      image: String(p.image || "").split(",")[0].trim(),
-      url: p.url || "",
-      category: autoCategory(p.name || "", p.description || "")
-    }));
+  products = data.map((p, i) => ({
+    id: i,
+    title: p.name || "",
+    description: p.description || "",
+    price: p.price || "",
+    image: String(p.image || "").split(",")[0].trim(),
+    url: p.url || ""
+  }));
 
-    console.log("✅ PRODUCTS LOADED:", products.length);
-
-  } catch (err) {
-    console.log("❌ PRODUCTS ERROR:", err);
-  }
+  console.log("✅ PRODUCTS LOADED:", products.length);
 }
 
 loadProducts();
 
 // =========================
-// ROOT
+// SMART SEARCH ENGINE
 // =========================
-app.get("/", (req, res) => {
-  res.send("🌸 Yasmin AI Running");
-});
+function searchProducts(query) {
+  const q = (query || "").toLowerCase();
+
+  return products.filter(p => {
+    const text = (p.title + " " + (p.description || "")).toLowerCase();
+
+    return q.split(" ").some(word => text.includes(word));
+  }).filter(p => p.image && p.url);
+}
 
 // =========================
-// CHAT (FULL INTELLIGENCE)
+// MAIN CHAT
 // =========================
 app.post("/chat", async (req, res) => {
   try {
@@ -103,123 +85,127 @@ app.post("/chat", async (req, res) => {
     if (!sessions[sessionId]) {
       sessions[sessionId] = {
         history: [],
-        shownProducts: []
+        shown: []
       };
     }
 
     const session = sessions[sessionId];
 
-    session.history.push({
-      role: "user",
-      content: message
-    });
-
-    const catalog = products.map(p =>
-      `ID:${p.id} | ${p.title} | ${p.category}`
-    ).join("\n");
+    session.history.push({ role: "user", content: message });
 
     // =========================
-    // 🔥 INTENT UNDERSTANDING (CORE FIX)
+    // AI UNDERSTANDING
     // =========================
     const ai = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
-      temperature: 0.3,
+      temperature: 0.2,
       messages: [
         {
           role: "system",
           content: `
-أنت نظام ذكي لمتجر.
+أنت مساعد متجر ذكي.
 
-افهم نية العميل فقط بدون كلمات ثابتة.
+حلل نية العميل فقط.
 
-أرجع JSON فقط:
+أرجع JSON:
 
 {
  "reply":"رد مختصر",
- "category":"بنات | اولاد | مواليد | جماعي | عام",
- "needRefresh": true/false
+ "intent":"search | change | general",
+ "keywords":"كلمات بحث"
 }
 
-القواعد:
-- إذا العميل غيّر الموضوع → needRefresh = true
-- إذا نفس الطلب → false
-- اختر category بناءً على المعنى وليس الكلمات
-
-المنتجات:
-${catalog}
+- search = يحتاج منتجات
+- change = غيّر الموضوع (أعد التوصيات)
+- general = كلام عادي
 `
         },
         ...session.history
       ]
     });
 
-    const content = ai.choices[0].message.content || "";
-
-    session.history.push({
-      role: "assistant",
-      content
-    });
+    let raw = ai.choices[0].message.content;
 
     let parsed;
-
     try {
-      parsed = JSON.parse(content.replace(/```json/g, "").replace(/```/g, "").trim());
+      parsed = JSON.parse(raw.replace(/```json/g, "").replace(/```/g, ""));
     } catch {
       parsed = null;
     }
 
     if (!parsed) {
       return res.json({
-        reply: content,
+        reply: raw,
         recommend: false
       });
     }
 
     // =========================
-    // SMART PRODUCT ENGINE (NO RULES, NO KEYWORDS)
+    // RESET IF USER CHANGED TOPIC
     // =========================
-    if (parsed.category) {
-
-      const needRefresh = parsed.needRefresh || false;
-
-      let used = needRefresh ? [] : (session.shownProducts || []);
-
-      let filtered = products.filter(p =>
-        p.category === parsed.category &&
-        p.image &&
-        p.url &&
-        !used.includes(p.id)
-      );
-
-      // لو ما فيه → نعيد تعبئة بدون تكرار
-      if (filtered.length === 0) {
-        used = [];
-        filtered = products.filter(p =>
-          p.category === parsed.category &&
-          p.image &&
-          p.url
-        );
-      }
-
-      const selected = filtered.slice(0, 3);
-
-      selected.forEach(p => used.push(p.id));
-
-      session.shownProducts = used;
-
-      return res.json({
-        reply: parsed.reply,
-        recommend: true,
-        products: selected
-      });
+    if (parsed.intent === "change") {
+      session.shown = [];
     }
+
+    // =========================
+    // SEARCH PRODUCTS
+    // =========================
+    let results = searchProducts(parsed.keywords || message);
+
+    // منع التكرار
+    results = results.filter(p => !session.shown.includes(p.id));
+
+    // لو خلصت نعيد التصفير
+    if (results.length === 0) {
+      session.shown = [];
+      results = searchProducts(parsed.keywords || message);
+    }
+
+    const selected = results.slice(0, 3);
+
+    selected.forEach(p => session.shown.push(p.id));
 
     return res.json({
       reply: parsed.reply,
-      recommend: false
+      recommend: true,
+      products: selected
     });
 
   } catch (err) {
-    console.log("❌ CHAT ERROR:", err);
+    console.log("CHAT ERROR:", err);
 
-   
+    return res.json({
+      reply: "خطأ مؤقت",
+      recommend: false
+    });
+  }
+});
+
+// =========================
+// REVIEW (TELEGRAM)
+// =========================
+app.post("/review", async (req, res) => {
+  try {
+
+    const rating = req.body.rating || 0;
+
+    await notifyTelegram(
+      `⭐ تقييم جديد\n⭐ ${rating}/5`
+    );
+
+    res.json({ success: true });
+
+  } catch (e) {
+    res.json({ success: false });
+  }
+});
+
+// =========================
+// START
+// =========================
+app.get("/", (req, res) => {
+  res.send("AI STORE RUNNING");
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log("RUN:", PORT));
