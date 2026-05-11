@@ -42,20 +42,24 @@ let products = [];
 let sessions = {};
 
 // =========================
-// AUTO CATEGORY (NO EXCEL NEEDED)
+// AUTO CATEGORY (NO DESCRIPTION REQUIRED)
 // =========================
 function autoCategory(title, desc) {
-  const text = (title + " " + desc).toLowerCase();
 
-  if (text.includes("باربي") || text.includes("دمية") || text.includes("makeup") || text.includes("مكياج")) {
+  const text = (title + " " + (desc || "")).toLowerCase();
+
+  // بنات
+  if (/(دمية|باربي|مكياج|اكسسوارات|شنطة|عطر|بنات)/.test(text)) {
     return "بنات";
   }
 
-  if (text.includes("سيارة") || text.includes("طيارة") || text.includes("روبوت") || text.includes("مسدس")) {
+  // أولاد
+  if (/(سيارة|طائرة|روبوت|مسدس|اولاد|أولاد)/.test(text)) {
     return "أولاد";
   }
 
-  if (text.includes("lego") || text.includes("تعليمي") || text.includes("ألغاز") || text.includes("مكعبات")) {
+  // أطفال
+  if (/(lego|تعليمي|ألغاز|مكعبات|أطفال)/.test(text)) {
     return "أطفال";
   }
 
@@ -78,7 +82,6 @@ function loadProducts() {
       price: p.price || "",
       image: String(p.image || "").split(",")[0].trim(),
       url: p.url || "",
-
       category: autoCategory(p.name || "", p.description || "")
     }));
 
@@ -92,7 +95,14 @@ function loadProducts() {
 loadProducts();
 
 // =========================
-// CHAT
+// ROOT
+// =========================
+app.get("/", (req, res) => {
+  res.send("🌸 Yasmin AI Running");
+});
+
+// =========================
+// CHAT (FULL FIXED)
 // =========================
 app.post("/chat", async (req, res) => {
   try {
@@ -127,11 +137,11 @@ app.post("/chat", async (req, res) => {
           content: `
 أنتِ ياسمين 🌸 متجر قرية الهدايا
 
-إذا احتاج العميل منتجات → أرجع JSON:
+إذا العميل يحتاج منتجات → أرجع JSON:
 {
  "reply":"...",
  "recommend":true,
- "product_query":"بنات / أولاد / أطفال"
+ "product_query":"بنات / أولاد / أطفال / عام"
 }
 
 غير كذا رد طبيعي نص فقط.
@@ -175,7 +185,7 @@ ${catalog}
     }
 
     // =========================
-    // SMART FILTER (FIXED CATEGORY)
+    // SMART FILTER (FULL SAFE)
     // =========================
     if (parsed.recommend) {
 
@@ -183,7 +193,13 @@ ${catalog}
 
       let filtered = products.filter(p => {
 
-        const text = (p.title + " " + p.description + " " + p.category).toLowerCase();
+        const text = (
+          p.title +
+          " " +
+          (p.description || "") +
+          " " +
+          p.category
+        ).toLowerCase();
 
         if (query.includes("بنات")) return text.includes("بنات");
         if (query.includes("اولاد") || query.includes("أولاد")) return text.includes("أولاد");
@@ -192,7 +208,7 @@ ${catalog}
         return true;
       });
 
-      // منع تكرار داخل المحادثة
+      // منع التكرار
       const used = session.shownProducts;
       session.shownProducts = used;
 
@@ -231,7 +247,7 @@ ${catalog}
 });
 
 // =========================
-// REVIEW (EMAIL FIXED)
+// REVIEW (EMAIL STABLE)
 // =========================
 app.post("/review", async (req, res) => {
   try {
@@ -252,12 +268,6 @@ app.post("/review", async (req, res) => {
     reviews.push(review);
 
     fs.writeFileSync("./reviews.json", JSON.stringify(reviews, null, 2));
-
-    console.log("📩 Sending email...");
-
-    if (!process.env.GMAIL_PASS) {
-      console.log("❌ GMAIL_PASS missing");
-    }
 
     const info = await transporter.sendMail({
       from: "giftsvillageqatif@gmail.com",
