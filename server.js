@@ -465,7 +465,6 @@ ${catalog}
 // =========================
 // 📡 TELEGRAM (ADDED ONLY - NO CHANGES ELSEWHERE)
 // =========================
-let telegramUsers = new Set();
 
 async function sendTelegramMessage(text) {
   try {
