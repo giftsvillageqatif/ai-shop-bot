@@ -20,6 +20,10 @@ const AUTH_PASSWORD = process.env.BOT_PASSWORD;
 // المستخدمين
 let allowedUsers = new Set();
 let telegramUsers = new Set();
+let userState = {};
+let activeChats = {};
+let employees = {};
+let pendingEmployees = {};
 
 
 // تحميل المستخدمين
@@ -79,26 +83,78 @@ function sendMenu(chatId) {
 // LOGOUT
 // =========================
 
-bot.on("callback_query", (query) => {
+bot.on("callback_query", (q) => {
 
-  const chatId = query.message.chat.id;
-  const data = query.data;
+  const data = q.data;
 
-  console.log("BUTTON:", data);
+  // =========================
+  // JOIN CHAT
+  // =========================
+  if (data.startsWith("join_")) {
 
+    const userId = data.split("_")[1];
+
+    if (activeChats[userId]) {
+      bot.answerCallbackQuery(q.id, { text: "مستلم من موظف آخر" });
+      return;
+    }
+
+    const empId = q.from.id;
+    const empName = employees[empId]?.name || "موظف";
+
+    activeChats[userId] = empId;
+    userState[userId] = "human_mode";
+
+    bot.sendMessage(userId,
+`👨‍💼 معك ${empName}
+كيف أساعدك؟`);
+
+    bot.sendMessage(empId,
+`تم ربطك بالعميل ${userId}`, {
+  reply_markup: {
+    inline_keyboard: [[
+      { text: "❌ إنهاء المحادثة", callback_data: `close_${userId}` }
+    ]]
+  }
+});
+
+    bot.answerCallbackQuery(q.id);
+  }
+
+  // =========================
+  // CLOSE CHAT
+  // =========================
+  if (data.startsWith("close_")) {
+
+    const userId = data.split("_")[1];
+    const empId = q.from.id;
+
+    delete activeChats[userId];
+    userState[userId] = "bot";
+
+    bot.sendMessage(userId, "تم إنهاء المحادثة 👋");
+    bot.sendMessage(empId, "تم الإنهاء");
+
+    bot.answerCallbackQuery(q.id);
+  }
+
+  // =========================
+  // LOGOUT FIX (عندك خطأ هنا)
+  // =========================
   if (data === "logout") {
 
-    // أول شيء أرسل الرسالة
-    bot.sendMessage(chatId, "تم تسجيل خروجك 👋");
-  }
-    
+    const chatId = q.message.chat.id;
+
     allowedUsers.delete(chatId);
     telegramUsers.delete(chatId);
 
-    saveUsers();
     saveAllowedUsers();
+    saveUsers();
 
-  bot.answerCallbackQuery(query.id);
+    bot.sendMessage(chatId, "تم تسجيل الخروج");
+    bot.answerCallbackQuery(q.id);
+  }
+
 });
 
 // =========================
@@ -109,31 +165,90 @@ bot.on("message", (msg) => {
 
   const chatId = msg.chat.id;
   const text = msg.text || "";
+  const userId = msg.from.id;
 
-  // إذا المستخدم مسجل مسبقًا
-  if (allowedUsers.has(chatId)) {
-    console.log("User allowed:", chatId);
+  // =========================
+  // 🔐 تسجيل الموظف (كلمة سر)
+  // =========================
+  if (!employees[userId] && text === ADMIN_PASSWORD) {
+
+    pendingEmployees[userId] = true;
+    bot.sendMessage(userId, "اكتب اسمك الآن 👨‍💼");
     return;
   }
 
-  // إذا كتب كلمة السر الصحيحة
-  if (text === AUTH_PASSWORD) {
+  // =========================
+  // 🧑‍💼 حفظ اسم الموظف
+  // =========================
+  if (pendingEmployees[userId]) {
 
-    allowedUsers.add(chatId);
-    telegramUsers.add(chatId);
-    saveAllowedUsers();
-    saveUsers();
+    employees[userId] = {
+      name: text
+    };
 
-    bot.sendMessage(chatId, "تم تسجيل الدخول بنجاح ✅");
-    sendMenu(chatId);
+    delete pendingEmployees[userId];
+
+    bot.sendMessage(userId, `تم تسجيلك 👨‍💼: ${text}`);
+    return;
+  }
+
+  // =========================
+  // 🚨 طلب خدمة العملاء
+  // =========================
+  if (text.includes("خدمة العملاء") || text.includes("موظف")) {
+
+    userState[chatId] = "waiting";
+
+    notifyAllEmployees(chatId, text);
+
+    bot.sendMessage(chatId, "تم تحويلك لخدمة العملاء ⏳");
+    return;
+  }
+
+  // =========================
+  // 💬 لو العميل داخل مع موظف
+  // =========================
+  if (userState[chatId] === "human_mode") {
+
+  const empId = activeChats[chatId];
+
+  if (!empId) {
+    bot.sendMessage(chatId, "⚠️ لا يوجد موظف متصل حالياً");
+    return;
+  }
+
+  bot.sendMessage(empId,
+`💬 عميل ${chatId}
+${text}`);
+
+  return;
+}
+
+  // =========================
+  // 📩 رد الموظف على عميل (/reply)
+  // =========================
+  if (text.startsWith("/reply")) {
+
+    const parts = text.split(" ");
+    const targetUserId = parts[1];
+    const msgText = parts.slice(2).join(" ");
+
+    if (targetUserId && msgText) {
+      bot.sendMessage(targetUserId, msgText);
+    }
 
     return;
   }
 
-  // أي رسالة ثانية
-  bot.sendMessage(chatId, "🔐 اكتب كلمة الدخول للمتابعة");
+  // =========================
+  // 🔒 fallback (لو مو مسجل)
+  // =========================
+  if (!allowedUsers.has(chatId)) {
+    bot.sendMessage(chatId, "🔐 اكتب كلمة الدخول للمتابعة");
+    return;
+  }
+
 });
-
 
 // =========================
 // 🔑 OPENAI
