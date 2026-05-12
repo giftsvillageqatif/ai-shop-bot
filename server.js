@@ -3,21 +3,36 @@ import cors from "cors";
 import xlsx from "xlsx";
 import fs from "fs";
 import OpenAI from "openai";
+import TelegramBot from "node-telegram-bot-api";
+
+const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, {
+  polling: true
+});
+
+let telegramUsers = new Set();
+
+// تحميل المستخدمين من الملف عند التشغيل
+try {
+  const data = fs.readFileSync("./telegram_users.json", "utf8");
+  const parsed = JSON.parse(data);
+  telegramUsers = new Set(parsed);
+} catch {
+  telegramUsers = new Set();
+}
+
+// حفظ المستخدمين
+function saveUsers() {
+  fs.writeFileSync(
+    "./telegram_users.json",
+    JSON.stringify([...telegramUsers], null, 2)
+  );
+}
 
 const app = express();
 
 app.use(express.json({ limit: "10mb" }));
 app.use(cors());
 
-
-// =========================
-// 📡 TELEGRAM USERS (HERE)
-// =========================
-let telegramUsers = new Set();
-
-bot.on("message", (msg) => {
-  telegramUsers.add(msg.chat.id);
-});
 
 // =========================
 // 🔑 OPENAI
@@ -197,6 +212,7 @@ app.post("/chat", async function (req, res) {
     const sessionId =
       req.body.sessionId ||
       "guest";
+
 
     const message =
       req.body.message || "";
@@ -466,18 +482,7 @@ async function sendTelegramMessage(text) {
 
     telegramUsers.forEach(async (id) => {
 
-      await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
-
-        method: "POST",
-
-        headers: { "Content-Type": "application/json" },
-
-        body: JSON.stringify({
-          chat_id: id,
-          text
-        })
-
-      });
+      await bot.sendMessage(id, text);
 
     });
 
