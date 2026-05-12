@@ -21,7 +21,23 @@ const AUTH_PASSWORD = process.env.BOT_PASSWORD;
 let allowedUsers = new Set();
 let telegramUsers = new Set();
 
+
 // تحميل المستخدمين
+try {
+  const data = fs.readFileSync("./allowed_users.json", "utf8");
+  allowedUsers = new Set(JSON.parse(data));
+} catch {
+  allowedUsers = new Set();
+}
+// تحميل allowedUsers
+try {
+  const data = fs.readFileSync("./allowed_users.json", "utf8");
+  allowedUsers = new Set(JSON.parse(data));
+} catch {
+  allowedUsers = new Set();
+}
+
+// تحميل telegramUsers
 try {
   const data = fs.readFileSync("./telegram_users.json", "utf8");
   telegramUsers = new Set(JSON.parse(data));
@@ -30,10 +46,10 @@ try {
 }
 
 // حفظ المستخدمين
-function saveUsers() {
+function saveAllowedUsers() {
   fs.writeFileSync(
-    "./telegram_users.json",
-    JSON.stringify([...telegramUsers], null, 2)
+    "./allowed_users.json",
+    JSON.stringify([...allowedUsers], null, 2)
   );
 }
 
@@ -72,12 +88,12 @@ bot.on("callback_query", (query) => {
   if (data === "logout") {
 
     allowedUsers.delete(chatId);
-
     telegramUsers.delete(chatId);
 
     delete userStep[chatId];
 
     saveUsers();
+    saveAllowedUsers();
 
     bot.sendMessage(chatId, "تم تسجيل خروجك 👋");
 
@@ -107,6 +123,7 @@ bot.on("message", (msg) => {
 
     allowedUsers.add(chatId);
     telegramUsers.add(chatId);
+    saveAllowedUsers();
     saveUsers();
 
     bot.sendMessage(chatId, "تم تسجيل الدخول بنجاح ✅");
@@ -565,8 +582,6 @@ ${catalog}
 
 async function sendTelegramMessage(text) {
   try {
-
-    console.log("USERS:", [...telegramUsers]); // 👈 هنا أفضل مكان
 
     telegramUsers.forEach((id) => {
       bot.sendMessage(id, text);
