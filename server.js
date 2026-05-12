@@ -526,6 +526,11 @@ app.post("/review", async function (req, res) {
     // =========================
     // NEW: GET CHAT HISTORY
     // =========================
+    const ADMIN_ID = Number(process.env.ADMIN_ID); // حط رقمك هنا
+
+async function sendTelegramMessage(message, chatId = ADMIN_ID) {
+  return bot.sendMessage(chatId, message);
+}
     const sessionId = req.body.sessionId || "guest";
     const history = sessions[sessionId]?.history || [];
 
