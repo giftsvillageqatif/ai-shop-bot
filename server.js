@@ -571,19 +571,13 @@ app.post("/review", async function (req, res) {
 
     const review = {
 
-      orderId:
-        req.body.orderId ||
-        "غير معروف",
-
-      customer:
-        req.body.customer ||
-        "عميل",
-
       rating:
         req.body.rating || 0,
 
       date:
-        new Date().toISOString()
+        date: new Date().toLocaleString("ar-SA", {
+  timeZone: "Asia/Riyadh"
+})
 
     };
 
@@ -630,8 +624,6 @@ app.post("/review", async function (req, res) {
     
     await sendTelegramMessage(
       `⭐ تقييم جديد
-📦 الطلب: ${review.orderId}
-👤 العميل: ${review.customer}
 ⭐ التقييم: ${review.rating}/5
 📅 التاريخ: ${review.date}
 
