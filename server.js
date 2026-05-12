@@ -90,6 +90,7 @@ bot.on("callback_query", (query) => {
 
     // أول شيء أرسل الرسالة
     bot.sendMessage(chatId, "تم تسجيل خروجك 👋");
+  }
     
     allowedUsers.delete(chatId);
     telegramUsers.delete(chatId);
