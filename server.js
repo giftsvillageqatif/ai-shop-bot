@@ -598,14 +598,17 @@ app.post("/review", async function (req, res) {
   try {
 
     const review = {
-      rating:
-        req.body.rating || 0,
+  rating: req.body.rating || 0,
 
-      date: new Date().toLocaleString("ar-SA", {
-          timeZone: "Asia/Riyadh",
-          hour12: true 
-        })
-     };
+  wrap: req.body.wrap || "no",
+  wrapColor: req.body.wrapColor || null,
+  note: req.body.note || "",
+
+  date: new Date().toLocaleString("ar-SA", {
+    timeZone: "Asia/Riyadh",
+    hour12: true
+  })
+};
   
 
     let reviews = [];
@@ -651,6 +654,9 @@ app.post("/review", async function (req, res) {
     
     await sendTelegramMessage(
       `⭐ تقييم جديد
+🎁 التغليف: ${review.wrap === "yes" ? "نعم" : "لا"}
+🎨 لون التغليف: ${review.wrapColor || "لا يوجد"}
+📝 ملاحظات: ${review.note || "لا يوجد"}
 ⭐ التقييم: ${review.rating}/5
 📅 التاريخ: ${review.date}
 
