@@ -38,73 +38,149 @@ function saveUsers() {
   );
 }
 
+// =========================
+
+// START MESSAGE
+
+// =========================
+
+function sendMenu(chatId) {
+
+  bot.sendMessage(chatId, "أهلاً بك 👋 داخل النظام", {
+
+    reply_markup: {
+
+      inline_keyboard: [
+
+        [{ text: "🚪 خروج", callback_data: "logout" }]
+
+      ]
+
+    }
+
+  });
+
+}
+
+// =========================
+
+// CALLBACK (LOGOUT)
+
+// =========================
+
 bot.on("callback_query", (query) => {
+
   const chatId = query.message.chat.id;
+
   const data = query.data;
 
-  if (data === "leave") {
+  if (data === "logout") {
 
     allowedUsers.delete(chatId);
+
     telegramUsers.delete(chatId);
-    delete sessions[chatId];
+
+    delete userStep[chatId];
 
     saveUsers();
 
     bot.sendMessage(chatId, "تم تسجيل خروجك 👋");
 
-    bot.answerCallbackQuery(query.id);
   }
+
+  bot.answerCallbackQuery(query.id);
+
 });
 
 // =========================
-// 👇 بوت
+
+// MESSAGE HANDLER
+
 // =========================
+
 bot.on("message", (msg) => {
+
   const chatId = msg.chat.id;
   const text = msg.text || "";
 
-  
-  // إذا غير مسموح
-  if (!allowedUsers.has(chatId)) {
-
-  // البداية
-  if (!userStep[chatId]) {
-    userStep[chatId] = "waiting_password";
-    bot.sendMessage(chatId, "ادخل كلمة الدخول 👇");
+  // إذا المستخدم مسجل مسبقًا
+  if (allowedUsers.has(chatId)) {
+    console.log("User allowed:", chatId);
     return;
   }
 
-  // انتظار كلمة المرور
+  // إذا كتب كلمة السر الصحيحة
+  if (text === AUTH_PASSWORD) {
+
+    allowedUsers.add(chatId);
+    telegramUsers.add(chatId);
+    saveUsers();
+
+    bot.sendMessage(chatId, "تم تسجيل الدخول بنجاح ✅");
+    sendMenu(chatId);
+
+    return;
+  }
+
+  // أي رسالة ثانية
+  bot.sendMessage(chatId, "🔐 اكتب كلمة الدخول للمتابعة");
+});
+
+  // =========================
+
+  // PASSWORD CHECK
+
+  // =========================
+
   if (userStep[chatId] === "waiting_password") {
 
     if (text === AUTH_PASSWORD) {
+
       allowedUsers.add(chatId);
+
       telegramUsers.add(chatId);
+
       saveUsers();
 
       delete userStep[chatId];
 
-      bot.sendMessage(chatId, "أهلاً بك 👋 داخل النظام", {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "🚪 خروج من النظام", callback_data: "leave" }]
-          ]
-        }
-      });
+      bot.sendMessage(chatId, "تم الدخول بنجاح ✅");
+
+      sendMenu(chatId);
 
     } else {
-      bot.sendMessage(chatId, "❌ كلمة الدخول خطأ");
+
+      bot.sendMessage(chatId, "❌ كلمة الدخول غير صحيحة");
+
     }
 
     return;
+
   }
 
-  return;
-}
-  
-  console.log("User allowed:", chatId);
-});
+  // =========================
 
+  // IF NOT ALLOWED
+
+  // =========================
+
+  if (!allowedUsers.has(chatId)) {
+
+    bot.sendMessage(chatId, "اكتب /start للبداية");
+
+    return;
+
+  }
+
+  // =========================
+
+  // ALLOWED USERS
+
+  // =========================
+
+  console.log("User allowed:", chatId);
+
+});
 
 // =========================
 // 🔑 OPENAI
