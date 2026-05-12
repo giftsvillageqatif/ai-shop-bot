@@ -254,36 +254,26 @@ ${p.price}
 
 أنتِ ياسمين 🌸
 
-موظفة ذكية داخل متجر قرية الهدايا.
-
 مهمتك:
 - فهم العميل
-- التفاعل الطبيعي
-- اقتراح منتجات مناسبة
-- الإجابة عن أسئلة المتجر فقط
+- اقتراح منتجات
 
-إذا احتجتِ ترشيح منتجات:
-
-أرجعي JSON فقط:
+إذا احتجتِ ترشيح:
 
 {
  "reply":"ردك",
  "recommend":true,
- "product_query":"وصف العميل"
+ "product_query":""
 }
 
-إذا تحتاجين سؤال العميل:
+إذا سؤال:
 
 {
  "reply":"سؤالك",
  "recommend":false
 }
 
-معلومات المتجر:
-
 ${storeKnowledge}
-
-المنتجات:
 
 ${catalog}
 
@@ -317,7 +307,7 @@ ${catalog}
       return res.json({
 
         reply:
-          "🌸 ممكن توضّح لي أكثر؟",
+          "🌸 ممكن توضّح؟",
 
         recommend: false
 
@@ -325,9 +315,6 @@ ${catalog}
 
     }
 
-    // =========================
-    // 🛍 RECOMMEND
-    // =========================
     if (parsed.recommend) {
 
       const recAI =
@@ -344,21 +331,7 @@ ${catalog}
 
               role: "system",
 
-              content: `
-
-اختر أفضل 3 منتجات مناسبة فقط.
-
-أرجع JSON فقط:
-
-{
- "products":[1,2,3]
-}
-
-القائمة:
-
-${catalog}
-
-`
+              content: `اختر 3 منتجات فقط\n\n${catalog}`
 
             },
 
@@ -383,10 +356,7 @@ ${catalog}
 
       let selected = [];
 
-      if (
-        recParsed &&
-        recParsed.products
-      ) {
+      if (recParsed?.products) {
 
         selected =
           products.filter(
@@ -398,9 +368,7 @@ ${catalog}
 
       }
 
-      if (
-        selected.length === 0
-      ) {
+      if (!selected.length) {
 
         selected =
           products.slice(0, 3);
@@ -440,7 +408,7 @@ ${catalog}
     return res.json({
 
       reply:
-        "🌸 ياسمين لديها خلل تقني مؤقت",
+        "🌸 خطأ مؤقت",
 
       recommend: false
 
@@ -452,26 +420,39 @@ ${catalog}
 
 
 // =========================
-// 📡 TELEGRAM (ADDED ONLY - NO CHANGES ELSEWHERE)
+// 📡 TELEGRAM (FIXED ONLY)
 // =========================
 async function sendTelegramMessage(text) {
+
   try {
+
     await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
+
       method: "POST",
+
       headers: { "Content-Type": "application/json" },
+
       body: JSON.stringify({
+
         chat_id: process.env.TELEGRAM_CHAT_ID,
+
         text
+
       })
+
     });
+
   } catch (err) {
+
     console.log("❌ TELEGRAM ERROR:", err.message);
+
   }
+
 }
 
 
 // =========================
-// ⭐ REVIEW (ONLY ADD TELEGRAM CALL)
+// ⭐ REVIEW
 // =========================
 app.post("/review", async function (req, res) {
 
@@ -512,32 +493,17 @@ app.post("/review", async function (req, res) {
     reviews.push(review);
 
     fs.writeFileSync(
-
       "./reviews.json",
-
-      JSON.stringify(
-        reviews,
-        null,
-        2
-      )
-
+      JSON.stringify(reviews, null, 2)
     );
 
-    // =========================
-    // NEW: GET CHAT HISTORY
-    // =========================
-    const ADMIN_ID = Number(process.env.ADMIN_ID); // حط رقمك هنا
-
-async function sendTelegramMessage(message, chatId = ADMIN_ID) {
-  return bot.sendMessage(chatId, message);
-}
     const sessionId = req.body.sessionId || "guest";
     const history = sessions[sessionId]?.history || [];
 
     const chatText = history.map(h => `${h.role}: ${h.content}`).join("\n");
 
     // =========================
-    // NEW: TELEGRAM SEND
+    // TELEGRAM SEND
     // =========================
     await sendTelegramMessage(
       `⭐ تقييم جديد
@@ -550,20 +516,13 @@ async function sendTelegramMessage(message, chatId = ADMIN_ID) {
 ${chatText}`
     );
 
-    res.json({
-      success: true
-    });
+    res.json({ success: true });
 
   } catch (err) {
 
-    console.log(
-      "❌ REVIEW ERROR:",
-      err
-    );
+    console.log("❌ REVIEW ERROR:", err);
 
-    res.json({
-      success: false
-    });
+    res.json({ success: false });
 
   }
 
@@ -578,9 +537,6 @@ const PORT =
 
 app.listen(PORT, function () {
 
-  console.log(
-    "🌸 SERVER RUNNING:",
-    PORT
-  );
+  console.log("🌸 SERVER RUNNING:", PORT);
 
 });
