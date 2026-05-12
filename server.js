@@ -566,13 +566,11 @@ ${catalog}
 async function sendTelegramMessage(text) {
   try {
 
-    const users = [...telegramUsers];
+    console.log("USERS:", [...telegramUsers]); // 👈 هنا أفضل مكان
 
-    console.log("Sending to:", users);
-
-    for (const id of users) {
-      await bot.sendMessage(id, text);
-    }
+    telegramUsers.forEach((id) => {
+      bot.sendMessage(id, text);
+    });
 
   } catch (err) {
     console.log("❌ TELEGRAM ERROR:", err.message);
