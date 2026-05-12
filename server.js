@@ -29,15 +29,7 @@ try {
 } catch {
   allowedUsers = new Set();
 }
-// تحميل allowedUsers
-try {
-  const data = fs.readFileSync("./allowed_users.json", "utf8");
-  allowedUsers = new Set(JSON.parse(data));
-} catch {
-  allowedUsers = new Set();
-}
 
-// تحميل telegramUsers
 try {
   const data = fs.readFileSync("./telegram_users.json", "utf8");
   telegramUsers = new Set(JSON.parse(data));
@@ -52,6 +44,14 @@ function saveAllowedUsers() {
     JSON.stringify([...allowedUsers], null, 2)
   );
 }
+
+function saveUsers() {
+  fs.writeFileSync(
+    "./telegram_users.json",
+    JSON.stringify([...telegramUsers], null, 2)
+  );
+}
+
 
 // =========================
 // MENU
