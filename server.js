@@ -82,25 +82,22 @@ function sendMenu(chatId) {
 bot.on("callback_query", (query) => {
 
   const chatId = query.message.chat.id;
-
   const data = query.data;
+
+  console.log("BUTTON:", data);
 
   if (data === "logout") {
 
     allowedUsers.delete(chatId);
     telegramUsers.delete(chatId);
 
-    delete userStep[chatId];
-
     saveUsers();
     saveAllowedUsers();
 
     bot.sendMessage(chatId, "تم تسجيل خروجك 👋");
-
   }
 
   bot.answerCallbackQuery(query.id);
-
 });
 
 // =========================
