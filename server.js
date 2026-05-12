@@ -20,7 +20,6 @@ const AUTH_PASSWORD = process.env.BOT_PASSWORD;
 // المستخدمين
 let allowedUsers = new Set();
 let telegramUsers = new Set();
-let userStep = {}; // 🔥 مهم جدًا
 
 // تحميل المستخدمين
 try {
@@ -39,9 +38,7 @@ function saveUsers() {
 }
 
 // =========================
-
-// START MESSAGE
-
+// MENU
 // =========================
 
 function sendMenu(chatId) {
@@ -63,9 +60,7 @@ function sendMenu(chatId) {
 }
 
 // =========================
-
-// CALLBACK (LOGOUT)
-
+// LOGOUT
 // =========================
 
 bot.on("callback_query", (query) => {
@@ -93,9 +88,7 @@ bot.on("callback_query", (query) => {
 });
 
 // =========================
-
 // MESSAGE HANDLER
-
 // =========================
 
 bot.on("message", (msg) => {
@@ -126,61 +119,6 @@ bot.on("message", (msg) => {
   bot.sendMessage(chatId, "🔐 اكتب كلمة الدخول للمتابعة");
 });
 
-  // =========================
-
-  // PASSWORD CHECK
-
-  // =========================
-
-  if (userStep[chatId] === "waiting_password") {
-
-    if (text === AUTH_PASSWORD) {
-
-      allowedUsers.add(chatId);
-
-      telegramUsers.add(chatId);
-
-      saveUsers();
-
-      delete userStep[chatId];
-
-      bot.sendMessage(chatId, "تم الدخول بنجاح ✅");
-
-      sendMenu(chatId);
-
-    } else {
-
-      bot.sendMessage(chatId, "❌ كلمة الدخول غير صحيحة");
-
-    }
-
-    return;
-
-  }
-
-  // =========================
-
-  // IF NOT ALLOWED
-
-  // =========================
-
-  if (!allowedUsers.has(chatId)) {
-
-    bot.sendMessage(chatId, "اكتب /start للبداية");
-
-    return;
-
-  }
-
-  // =========================
-
-  // ALLOWED USERS
-
-  // =========================
-
-  console.log("User allowed:", chatId);
-
-});
 
 // =========================
 // 🔑 OPENAI
