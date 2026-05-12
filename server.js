@@ -117,9 +117,19 @@ bot.on("callback_query", (q) => {
     activeChats[userId] = empId;
     userState[userId] = "human_mode";
 
-    bot.sendMessage(userId,
-`👨‍💼 معك ${empName}
-كيف أساعدك؟`);
+    liveSupportSessions[userId] = {
+  employeeId: empId,
+  employeeName: empName
+};
+
+   if (sessions[userId]) {
+
+  sessions[userId].history.push({
+    role: "assistant",
+    content: `👨‍💼 معك موظف خدمة العملاء (${empName}) كيف أقدر أخدمك؟`
+  });
+
+}
 
     bot.sendMessage(empId,
 `تم ربطك بالعميل ${userId}`, {
@@ -143,8 +153,16 @@ bot.on("callback_query", (q) => {
 
     delete activeChats[userId];
     userState[userId] = "bot";
+    delete liveSupportSessions[userId];
 
-    bot.sendMessage(userId, "تم إنهاء المحادثة 👋");
+    if (sessions[userId]) {
+
+  sessions[userId].history.push({
+    role: "assistant",
+    content: "تم إنهاء المحادثة 👋"
+  });
+
+}
     bot.sendMessage(empId, "تم الإنهاء");
 
     bot.answerCallbackQuery(q.id);
@@ -237,20 +255,30 @@ bot.on("message", (msg) => {
 
   if (!empId) return;
 
-  // لو الرسالة جاية من موظف
-  if (employees[userId]) {
+ // =========================
+// 👨‍💼 EMPLOYEE REPLY
+// =========================
 
-    // يرسل لكل العملاء المرتبطين بهذا الموظف
-    const clientId = Object.keys(activeChats)
-      .find(id => activeChats[id] === userId);
+if (employees[userId]) {
 
-    if (clientId) {
-      bot.sendMessage(clientId, `👨‍💼 ${text}`);
+  const clientId = Object.keys(activeChats)
+    .find(id => activeChats[id] == userId);
+
+  if (clientId) {
+
+    if (sessions[clientId]) {
+
+      sessions[clientId].history.push({
+        role: "assistant",
+        content: text
+      });
+
     }
 
     return;
   }
 
+}
   // لو عميل → يرسل للموظف
   bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
 
@@ -301,7 +329,7 @@ let products = [];
 // 💬 SESSIONS
 // =========================
 let sessions = {};
-
+let liveSupportSessions = {};
 
 // =========================
 // 🏪 STORE INFO
@@ -466,15 +494,27 @@ app.post("/chat", async function (req, res) {
     const message =
       req.body.message || "";
 
-   if (/خدمة العملاء|موظف|دعم/.test(message)) {
+  // =========================
+// 💬 LIVE SUPPORT MODE
+// =========================
 
-  notifyAllEmployees(sessionId, message);
+if (liveSupportSessions[sessionId]) {
+
+  const employee =
+    liveSupportSessions[sessionId];
+
+  bot.sendMessage(
+    employee.employeeId,
+
+`💬 العميل:
+${message}`
+  );
 
   return res.json({
-    reply: "تم تحويلك لخدمة العملاء ⏳",
-    recommend: false,
+    reply: "✔️ تم إرسال رسالتك لخدمة العملاء",
     support: true
   });
+  
 }
     
     if (!sessions[sessionId]) {
