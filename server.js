@@ -9,36 +9,17 @@ const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, {
   polling: true
 });
 
-const BOT_PASSWORD = process.env.BOT_PASSWORD;
+const AUTH_PASSWORD = process.env.BOT_PASSWORD;
 
+// المستخدمين المسموح لهم
 let allowedUsers = new Set();
 
-bot.on("message", (msg) => {
-  const id = msg.chat.id;
-  const text = msg.text;
-
-  // إذا المستخدم غير مسموح
-  if (!allowedUsers.has(id)) {
-
-    if (text === BOT_PASSWORD) {
-      allowedUsers.add(id);
-      bot.sendMessage(id, "✅ تم الدخول بنجاح");
-    } else {
-      bot.sendMessage(id, "🔒 اكتب كلمة السر للدخول");
-    }
-
-    return; // يمنع أي كود ثاني يشتغل قبل الدخول
-  }
-
-});
-
+// تحميل المستخدمين المحفوظين
 let telegramUsers = new Set();
 
-// تحميل المستخدمين من الملف عند التشغيل
 try {
   const data = fs.readFileSync("./telegram_users.json", "utf8");
-  const parsed = JSON.parse(data);
-  telegramUsers = new Set(parsed);
+  telegramUsers = new Set(JSON.parse(data));
 } catch {
   telegramUsers = new Set();
 }
@@ -51,10 +32,36 @@ function saveUsers() {
   );
 }
 
-// بعدها فقط البوت
+// =========================
+// 👇 بوت
+// =========================
 bot.on("message", (msg) => {
-  telegramUsers.add(msg.chat.id);
+  const chatId = msg.chat.id;
+  const text = msg.text || "";
+
+  // ❌ غير مسموح
+  if (!allowedUsers.has(chatId)) {
+
+    if (text === `/start ${AUTH_PASSWORD}`) {
+
+      allowedUsers.add(chatId);
+      telegramUsers.add(chatId);
+      saveUsers();
+
+      bot.sendMessage(chatId, "تم تسجيلك في النظام ✅");
+
+    } else {
+      bot.sendMessage(chatId, "ادخل كلمة الدخول الصحيحة 👇");
+    }
+
+    return;
+  }
+
+  // ✅ مسموح
+  telegramUsers.add(chatId);
   saveUsers();
+
+  console.log("User allowed:", chatId);
 });
 
 const app = express();
