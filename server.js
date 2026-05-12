@@ -199,22 +199,6 @@ bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text || "";
   const userId = msg.from.id;
-
-  // =========================
-  // 🚨 طلب خدمة العملاء
-  // =========================  
-  
-  if (/خدمة العملاء|موظف|دعم/.test(text)) {
-
-    if (userState[chatId] === "waiting") return;
-    
-    userState[chatId] = "waiting";
-
-    notifyAllEmployees(chatId, text);
-
-    bot.sendMessage(chatId, "تم تحويلك لخدمة العملاء ⏳");
-    return;
-  }
   
   // =========================
   // 🔐 تسجيل الموظف (كلمة سر)
@@ -472,6 +456,17 @@ app.post("/chat", async function (req, res) {
     const message =
       req.body.message || "";
 
+   if (/خدمة العملاء|موظف|دعم/.test(message)) {
+
+  notifyAllEmployees(sessionId, message);
+
+  return res.json({
+    reply: "تم تحويلك لخدمة العملاء ⏳",
+    recommend: false,
+    support: true
+  });
+}
+    
     if (!sessions[sessionId]) {
 
       sessions[sessionId] = {
