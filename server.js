@@ -201,6 +201,22 @@ bot.on("message", (msg) => {
   const userId = msg.from.id;
 
   // =========================
+  // 🚨 طلب خدمة العملاء
+  // =========================  
+  
+  if (/خدمة العملاء|موظف|دعم/.test(text)) {
+
+    if (userState[chatId] === "waiting") return;
+    
+    userState[chatId] = "waiting";
+
+    notifyAllEmployees(chatId, text);
+
+    bot.sendMessage(chatId, "تم تحويلك لخدمة العملاء ⏳");
+    return;
+  }
+  
+  // =========================
   // 🔐 تسجيل الموظف (كلمة سر)
   // =========================
   if (!employees[userId] && text === AUTH_PASSWORD) {
@@ -224,22 +240,6 @@ bot.on("message", (msg) => {
     delete pendingEmployees[userId];
 
     bot.sendMessage(userId, `تم تسجيلك 👨‍💼: ${text}`);
-    return;
-  }
-
-  // =========================
-  // 🚨 طلب خدمة العملاء
-  // =========================  
-  
-  if (/خدمة العملاء|موظف|دعم/.test(text)) {
-
-    if (userState[chatId] === "waiting") return;
-    
-    userState[chatId] = "waiting";
-
-    notifyAllEmployees(chatId, text);
-
-    bot.sendMessage(chatId, "تم تحويلك لخدمة العملاء ⏳");
     return;
   }
   
