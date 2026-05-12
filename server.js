@@ -577,7 +577,7 @@ app.post("/review", async function (req, res) {
       date:
         date: new Date().toLocaleString("ar-SA", {
   timeZone: "Asia/Riyadh"
-})
+}
 
     };
 
@@ -612,7 +612,7 @@ app.post("/review", async function (req, res) {
     // =========================
     // NEW: GET CHAT HISTORY
     // =========================
-    const sessionId = req.body.sessionId || "guest";
+    
     const history = sessions[sessionId]?.history || [];
 
     const chatText = history.map(h => `${h.role}: ${h.content}`).join("\n");
