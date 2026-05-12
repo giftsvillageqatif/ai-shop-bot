@@ -24,6 +24,13 @@ try {
   telegramUsers = new Set();
 }
 
+function saveAllowedUsers() {
+  fs.writeFileSync(
+    "./allowed_users.json",
+    JSON.stringify([...allowedUsers], null, 2)
+  );
+}
+
 // حفظ المستخدمين
 function saveUsers() {
   fs.writeFileSync(
@@ -42,20 +49,21 @@ bot.on("message", (msg) => {
   // ❌ غير مسموح
   if (!allowedUsers.has(chatId)) {
 
-    if (text === `/start ${AUTH_PASSWORD}`) {
+  if (text === `/start ${AUTH_PASSWORD}`) {
 
-      allowedUsers.add(chatId);
-      telegramUsers.add(chatId);
-      saveUsers();
+    allowedUsers.add(chatId);   // ✅ مهم
+    telegramUsers.add(chatId);  // ✅ مهم
+    saveAllowedUsers();   // ✅ مهم
+    saveUsers();  // ✅ مهم
 
-      bot.sendMessage(chatId, "تم تسجيلك في النظام ✅");
+    bot.sendMessage(chatId, "تم تسجيلك في النظام ✅");
 
-    } else {
-      bot.sendMessage(chatId, "ادخل كلمة الدخول الصحيحة 👇");
-    }
-
-    return;
+  } else {
+    bot.sendMessage(chatId, "ادخل كلمة الدخول الصحيحة 👇");
   }
+
+  return;
+}
 
   // ✅ مسموح
   telegramUsers.add(chatId);
@@ -515,9 +523,9 @@ ${catalog}
 
 async function sendTelegramMessage(text) {
   try {
-    telegramUsers.forEach(async (id) => {
-      await bot.sendMessage(id, text);
-    });
+    telegramUsers.forEach((id) => {
+  bot.sendMessage(id, text);
+});
 
   } catch (err) {
     console.log("❌ TELEGRAM ERROR:", err.message);
