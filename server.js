@@ -3,12 +3,26 @@ import cors from "cors";
 import xlsx from "xlsx";
 import fs from "fs";
 import OpenAI from "openai";
+import TelegramBot from "node-telegram-bot-api";
+
+const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, {
+  polling: true
+});
 
 const app = express();
 
 app.use(express.json({ limit: "10mb" }));
 app.use(cors());
 
+
+// =========================
+// 📡 TELEGRAM USERS (HERE)
+// =========================
+let telegramUsers = new Set();
+
+bot.on("message", (msg) => {
+  telegramUsers.add(msg.chat.id);
+});
 
 // =========================
 // 🔑 OPENAI
@@ -451,21 +465,34 @@ ${catalog}
 // =========================
 // 📡 TELEGRAM (ADDED ONLY - NO CHANGES ELSEWHERE)
 // =========================
+let telegramUsers = new Set();
+
 async function sendTelegramMessage(text) {
   try {
-    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: process.env.TELEGRAM_CHAT_ID,
-        text
-      })
+
+    telegramUsers.forEach(async (id) => {
+
+      await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
+
+        method: "POST",
+
+        headers: { "Content-Type": "application/json" },
+
+        body: JSON.stringify({
+          chat_id: id,
+          text
+        })
+
+      });
+
     });
+
   } catch (err) {
+
     console.log("❌ TELEGRAM ERROR:", err.message);
+
   }
 }
-
 
 // =========================
 // ⭐ REVIEW (ONLY ADD TELEGRAM CALL)
@@ -531,6 +558,8 @@ app.post("/review", async function (req, res) {
     // =========================
     // NEW: TELEGRAM SEND
     // =========================
+    
+    
     await sendTelegramMessage(
       `⭐ تقييم جديد
 📦 الطلب: ${review.orderId}
