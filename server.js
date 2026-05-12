@@ -18,6 +18,14 @@ bot.on("polling_error", (error) => {
   console.log("❌ POLLING ERROR:", error);
 });
 
+process.on("uncaughtException", (err) => {
+  console.log("💥 UNCUGHT ERROR:", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.log("💥 PROMISE ERROR:", err);
+});
+
 
 const AUTH_PASSWORD = process.env.BOT_PASSWORD;
 
@@ -174,7 +182,7 @@ bot.on("message", (msg) => {
   // =========================
   // 🔐 تسجيل الموظف (كلمة سر)
   // =========================
-  if (!employees[userId] && text === ADMIN_PASSWORD) {
+  if (!employees[userId] && text === AUTH_PASSWORD) {
 
     pendingEmployees[userId] = true;
     bot.sendMessage(userId, "اكتب اسمك الآن 👨‍💼");
