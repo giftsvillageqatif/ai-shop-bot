@@ -651,6 +651,14 @@ app.post("/review", async function (req, res) {
     // NEW: TELEGRAM SEND
     // =========================
     
+    function formatWrapColor(color) {
+      
+      if (color === "blue") return "🔵 أزرق";
+      if (color === "pink") return "🩷 وردي";
+
+return "لا يوجد";
+
+}
     
     await sendTelegramMessage(
       `⭐ تقييم جديد
