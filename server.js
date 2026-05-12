@@ -38,6 +38,24 @@ function saveUsers() {
   );
 }
 
+bot.on("callback_query", (query) => {
+  const chatId = query.message.chat.id;
+  const data = query.data;
+
+  if (data === "leave") {
+
+    allowedUsers.delete(chatId);
+    telegramUsers.delete(chatId);
+    delete sessions[chatId];
+
+    saveUsers();
+
+    bot.sendMessage(chatId, "تم تسجيل خروجك 👋");
+
+    bot.answerCallbackQuery(query.id);
+  }
+});
+
 // =========================
 // 👇 بوت
 // =========================
@@ -45,6 +63,7 @@ bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text || "";
 
+  
   // إذا غير مسموح
   if (!allowedUsers.has(chatId)) {
 
@@ -64,8 +83,17 @@ bot.on("message", (msg) => {
         saveUsers();
 
         delete userStep[chatId];
+        
+         
+        // ✅ هنا المنيو الصح
+        bot.sendMessage(chatId, "أهلاً بك 👋 داخل النظام", {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "🚪 خروج من النظام", callback_data: "leave" }]
+            ]
+          }
+        });
 
-        bot.sendMessage(chatId, "تم تسجيلك في النظام ✅");
       } else {
         bot.sendMessage(chatId, "❌ كلمة الدخول خطأ");
       }
