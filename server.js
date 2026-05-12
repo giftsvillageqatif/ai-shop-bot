@@ -584,11 +584,9 @@ app.post("/review", async function (req, res) {
       date:
         new Date().toLocateString("ar-SA", {
           timeZone: "Asia/Riyadh",
-          hour12: true
-          )
-
-    };
-
+          hour12: true 
+      };
+  }}
 
     let reviews = [];
 
