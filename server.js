@@ -28,6 +28,12 @@ function saveUsers() {
   );
 }
 
+// بعدها فقط البوت
+bot.on("message", (msg) => {
+  telegramUsers.add(msg.chat.id);
+  saveUsers();
+});
+
 const app = express();
 
 app.use(express.json({ limit: "10mb" }));
@@ -479,17 +485,12 @@ ${catalog}
 
 async function sendTelegramMessage(text) {
   try {
-
     telegramUsers.forEach(async (id) => {
-
       await bot.sendMessage(id, text);
-
     });
 
   } catch (err) {
-
     console.log("❌ TELEGRAM ERROR:", err.message);
-
   }
 }
 
