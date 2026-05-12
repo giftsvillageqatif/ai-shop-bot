@@ -88,14 +88,14 @@ bot.on("callback_query", (query) => {
 
   if (data === "logout") {
 
+    // أول شيء أرسل الرسالة
+    bot.sendMessage(chatId, "تم تسجيل خروجك 👋");
+    
     allowedUsers.delete(chatId);
     telegramUsers.delete(chatId);
 
     saveUsers();
     saveAllowedUsers();
-
-    bot.sendMessage(chatId, "تم تسجيل خروجك 👋");
-  }
 
   bot.answerCallbackQuery(query.id);
 });
