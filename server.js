@@ -490,11 +490,8 @@ app.post("/chat", async function (req, res) {
       req.body.sessionId ||
       "guest";
 
-
-    let message =
   req.body.message || "";
 
-message = message.toLowerCase().trim();
 
     if (
 /خدمة العملاء|موظف|موظفة|دعم|دعم فني|اتكلم مع موظف|ابي موظف|ابغى موظف|بشر|انسان/.test(message)
