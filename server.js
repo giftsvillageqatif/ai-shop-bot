@@ -565,9 +565,14 @@ ${catalog}
 
 async function sendTelegramMessage(text) {
   try {
-    telegramUsers.forEach((id) => {
-  bot.sendMessage(id, text);
-});
+
+    const users = [...telegramUsers];
+
+    console.log("Sending to:", users);
+
+    for (const id of users) {
+      await bot.sendMessage(id, text);
+    }
 
   } catch (err) {
     console.log("❌ TELEGRAM ERROR:", err.message);
