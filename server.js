@@ -235,14 +235,24 @@ bot.on("message", (msg) => {
 
   const empId = activeChats[chatId];
 
-  if (!empId) {
-    bot.sendMessage(chatId, "⚠️ لا يوجد موظف متصل حالياً");
+  if (!empId) return;
+
+  // لو الرسالة جاية من موظف
+  if (employees[userId]) {
+
+    // يرسل لكل العملاء المرتبطين بهذا الموظف
+    const clientId = Object.keys(activeChats)
+      .find(id => activeChats[id] === userId);
+
+    if (clientId) {
+      bot.sendMessage(clientId, `👨‍💼 ${text}`);
+    }
+
     return;
   }
 
-  bot.sendMessage(empId,
-`💬 عميل ${chatId}
-${text}`);
+  // لو عميل → يرسل للموظف
+  bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
 
   return;
 }
