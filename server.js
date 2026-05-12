@@ -9,26 +9,23 @@ const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, {
   polling: true
 });
 
+const app = express();
+app.use(express.json({ limit: "10mb" }));
+app.use(cors());
+
 const AUTH_PASSWORD = process.env.BOT_PASSWORD;
 
-// المستخدمين المسموح لهم
+// المستخدمين
 let allowedUsers = new Set();
-
-// تحميل المستخدمين المحفوظين
 let telegramUsers = new Set();
+let userStep = {}; // 🔥 مهم جدًا
 
+// تحميل المستخدمين
 try {
   const data = fs.readFileSync("./telegram_users.json", "utf8");
   telegramUsers = new Set(JSON.parse(data));
 } catch {
   telegramUsers = new Set();
-}
-
-function saveAllowedUsers() {
-  fs.writeFileSync(
-    "./allowed_users.json",
-    JSON.stringify([...allowedUsers], null, 2)
-  );
 }
 
 // حفظ المستخدمين
@@ -46,28 +43,36 @@ bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text || "";
 
-  // ❌ غير مسموح
+  // إذا غير مسموح
   if (!allowedUsers.has(chatId)) {
 
-  if (text === `/start ${AUTH_PASSWORD}`) {
+    // البداية
+    if (text === "/start") {
+      userStep[chatId] = "waiting_password";
+      bot.sendMessage(chatId, "ادخل كلمة الدخول 👇");
+      return;
+    }
 
-    allowedUsers.add(chatId);   // ✅ مهم
-    telegramUsers.add(chatId);  // ✅ مهم
-    saveAllowedUsers();   // ✅ مهم
-    saveUsers();  // ✅ مهم
+    // انتظار كلمة المرور
+    if (userStep[chatId] === "waiting_password") {
 
-    bot.sendMessage(chatId, "تم تسجيلك في النظام ✅");
+      if (text === AUTH_PASSWORD) {
+        allowedUsers.add(chatId);
+        telegramUsers.add(chatId);
+        saveUsers();
 
-  } else {
-    bot.sendMessage(chatId, "ادخل كلمة الدخول الصحيحة 👇");
+        delete userStep[chatId];
+
+        bot.sendMessage(chatId, "تم تسجيلك في النظام ✅");
+      } else {
+        bot.sendMessage(chatId, "❌ كلمة الدخول خطأ");
+      }
+
+      return;
+    }
+
+    return;
   }
-
-  return;
-}
-
-  // ✅ مسموح
-  telegramUsers.add(chatId);
-  saveUsers();
 
   console.log("User allowed:", chatId);
 });
@@ -76,7 +81,6 @@ const app = express();
 
 app.use(express.json({ limit: "10mb" }));
 app.use(cors());
-
 
 // =========================
 // 🔑 OPENAI
