@@ -67,6 +67,12 @@ bot.on("message", (msg) => {
   // إذا غير مسموح
   if (!allowedUsers.has(chatId)) {
 
+    if (!userStep[chatId]) {
+      userStep[chatId] = "waiting_password";
+      bot.sendMessage(chatId, "ادخل كلمة الدخول 👇");
+      return;
+    }
+    
     // انتظار كلمة المرور
     if (userStep[chatId] === "waiting_password") {
 
