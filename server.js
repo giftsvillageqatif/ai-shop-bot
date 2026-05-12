@@ -151,7 +151,7 @@ bot.on("callback_query", (q) => {
   }
 
   // =========================
-  // LOGOUT FIX (عندك خطأ هنا)
+  // LOGOUT FIX 
   // =========================
   if (data === "logout") {
 
@@ -168,6 +168,27 @@ bot.on("callback_query", (q) => {
   }
 
 });
+
+ function notifyAllEmployees(chatId, message) {
+
+  if (activeChats[chatId]) return;
+
+  telegramUsers.forEach(empId => {
+
+    bot.sendMessage(empId,
+`🚨 عميل يحتاج خدمة العملاء
+ID: ${chatId}
+💬 ${message}`,
+
+{
+  reply_markup: {
+    inline_keyboard: [[
+      { text: "📩 استلام", callback_data: `join_${chatId}` }
+    ]]
+  }
+});
+  });
+}
 
 // =========================
 // MESSAGE HANDLER
@@ -198,6 +219,8 @@ bot.on("message", (msg) => {
       name: text
     };
 
+    telegramUsers.add(userId); // 👈 مهم جدًا
+
     delete pendingEmployees[userId];
 
     bot.sendMessage(userId, `تم تسجيلك 👨‍💼: ${text}`);
@@ -206,9 +229,12 @@ bot.on("message", (msg) => {
 
   // =========================
   // 🚨 طلب خدمة العملاء
-  // =========================
-  if (text.includes("خدمة العملاء") || text.includes("موظف")) {
+  // =========================  
+  
+  if (/خدمة العملاء|موظف|دعم/.test(text)) {
 
+    if (userState[chatId] === "waiting") return;
+    
     userState[chatId] = "waiting";
 
     notifyAllEmployees(chatId, text);
@@ -216,6 +242,7 @@ bot.on("message", (msg) => {
     bot.sendMessage(chatId, "تم تحويلك لخدمة العملاء ⏳");
     return;
   }
+  });
 
   // =========================
   // 💬 لو العميل داخل مع موظف
