@@ -5,13 +5,15 @@ import fs from "fs";
 import OpenAI from "openai";
 import TelegramBot from "node-telegram-bot-api";
 
+const app = express();
+
+app.use(express.json({ limit: "10mb" }));
+app.use(cors());
+
 const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, {
   polling: true
 });
 
-const app = express();
-app.use(express.json({ limit: "10mb" }));
-app.use(cors());
 
 const AUTH_PASSWORD = process.env.BOT_PASSWORD;
 
@@ -77,10 +79,6 @@ bot.on("message", (msg) => {
   console.log("User allowed:", chatId);
 });
 
-const app = express();
-
-app.use(express.json({ limit: "10mb" }));
-app.use(cors());
 
 // =========================
 // 🔑 OPENAI
