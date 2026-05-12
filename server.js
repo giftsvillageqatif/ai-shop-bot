@@ -67,42 +67,41 @@ bot.on("message", (msg) => {
   // إذا غير مسموح
   if (!allowedUsers.has(chatId)) {
 
-    if (!userStep[chatId]) {
-      userStep[chatId] = "waiting_password";
-      bot.sendMessage(chatId, "ادخل كلمة الدخول 👇");
-      return;
-    }
-    
-    // انتظار كلمة المرور
-    if (userStep[chatId] === "waiting_password") {
+  // البداية
+  if (!userStep[chatId]) {
+    userStep[chatId] = "waiting_password";
+    bot.sendMessage(chatId, "ادخل كلمة الدخول 👇");
+    return;
+  }
 
-      if (text === AUTH_PASSWORD) {
-        allowedUsers.add(chatId);
-        telegramUsers.add(chatId);
-        saveUsers();
+  // انتظار كلمة المرور
+  if (userStep[chatId] === "waiting_password") {
 
-        delete userStep[chatId];
-        
-         
-        // ✅ هنا المنيو الصح
-        bot.sendMessage(chatId, "أهلاً بك 👋 داخل النظام", {
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: "🚪 خروج من النظام", callback_data: "leave" }]
-            ]
-          }
-        });
+    if (text === AUTH_PASSWORD) {
+      allowedUsers.add(chatId);
+      telegramUsers.add(chatId);
+      saveUsers();
 
-      } else {
-        bot.sendMessage(chatId, "❌ كلمة الدخول خطأ");
-      }
+      delete userStep[chatId];
 
-      return;
+      bot.sendMessage(chatId, "أهلاً بك 👋 داخل النظام", {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "🚪 خروج من النظام", callback_data: "leave" }]
+          ]
+        }
+      });
+
+    } else {
+      bot.sendMessage(chatId, "❌ كلمة الدخول خطأ");
     }
 
     return;
   }
 
+  return;
+}
+  
   console.log("User allowed:", chatId);
 });
 
