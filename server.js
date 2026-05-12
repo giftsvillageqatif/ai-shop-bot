@@ -68,7 +68,7 @@ bot.on("message", (msg) => {
   if (!allowedUsers.has(chatId)) {
 
     // البداية
-    if (text === "/start") {
+    if {
       userStep[chatId] = "waiting_password";
       bot.sendMessage(chatId, "ادخل كلمة الدخول 👇");
       return;
