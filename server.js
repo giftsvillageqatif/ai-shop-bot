@@ -570,13 +570,10 @@ app.post("/review", async function (req, res) {
   try {
 
     const review = {
-  orderId:
-
       rating:
         req.body.rating || 0,
 
-      date:
-        new Date().toLocaleString("ar-SA", {
+      date: new Date().toLocaleString("ar-SA", {
           timeZone: "Asia/Riyadh",
           hour12: true 
         })
