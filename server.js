@@ -260,8 +260,6 @@ if (employees[userId]) {
 if (!liveMessages) liveMessages = {};
 liveMessages[clientId] = text;
 
-}
-
   return;
 }
   
