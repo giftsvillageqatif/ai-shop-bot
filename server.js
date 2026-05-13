@@ -302,7 +302,7 @@ return;
     bot.sendMessage(chatId, "🔐 اكتب كلمة الدخول للمتابعة");
     return;
   }
-    });
+    
 
 // =========================
 // 🔑 OPENAI
