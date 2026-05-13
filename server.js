@@ -99,20 +99,6 @@ bot.on("callback_query", (q) => {
 
   const data = q.data;
 
-  if (data.startsWith("join_")) {
-    // JOIN LOGIC
-  }
-
-  if (data.startsWith("close_")) {
-    // CLOSE LOGIC
-  }
-
-  if (data === "logout") {
-    // LOGOUT LOGIC
-  }
-
-});
-
   // =========================
   // JOIN CHAT
   // =========================
@@ -136,9 +122,14 @@ bot.on("callback_query", (q) => {
   employeeName: empName
 };
 
-   liveMessages[userId] = 
-`👨‍💼 معك موظف خدمة العملاء (${empName})
-كيف أقدر أخدمك؟`;
+   if (sessions[userId]) {
+
+  sessions[userId].history.push({
+    role: "assistant",
+    content: `👨‍💼 معك موظف خدمة العملاء (${empName}) كيف أقدر أخدمك؟`
+  });
+
+}
 
     bot.sendMessage(empId,
 `تم ربطك بالعميل ${userId}`, {
@@ -151,7 +142,6 @@ bot.on("callback_query", (q) => {
 
     bot.answerCallbackQuery(q.id);
   }
-});
 
   // =========================
   // CLOSE CHAT
@@ -165,9 +155,14 @@ bot.on("callback_query", (q) => {
     userState[userId] = "bot";
     delete liveSupportSessions[userId];
 
-    liveMessages[userId] =
-"تم إنهاء المحادثة 👋";
+    if (sessions[userId]) {
 
+  sessions[userId].history.push({
+    role: "assistant",
+    content: "تم إنهاء المحادثة 👋"
+  });
+
+}
     bot.sendMessage(empId, "تم الإنهاء");
 
     bot.answerCallbackQuery(q.id);
@@ -210,9 +205,7 @@ ID: ${chatId}
     ]]
   }
 });
-    
   });
-   
 }
 
 // =========================
@@ -337,7 +330,6 @@ let products = [];
 // =========================
 let sessions = {};
 let liveSupportSessions = {};
-let liveMessages = {};
 
 // =========================
 // 🏪 STORE INFO
@@ -500,24 +492,6 @@ app.post("/chat", async function (req, res) {
 
 const message =
   req.body.message || "";
-
-    // =========================
-// 📩 LIVE MESSAGE TO CLIENT
-// =========================
-
-if (liveMessages[sessionId]) {
-
-  const msg =
-    liveMessages[sessionId];
-
-  delete liveMessages[sessionId];
-
-  return res.json({
-    reply: msg,
-    support: true
-  });
-
-}
 
 
     if (
