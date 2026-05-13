@@ -29,13 +29,17 @@ process.on("unhandledRejection", (err) => {
 
 const AUTH_PASSWORD = process.env.BOT_PASSWORD;
 
-// المستخدمين
+// let
 let allowedUsers = new Set();
 let telegramUsers = new Set();
 let userState = {};
 let activeChats = {};
 let employees = {};
 let pendingEmployees = {};
+let products = [];
+let sessions = {};
+let liveSupportSessions = {};
+let liveMessages = {};
 
 
 // تحميل المستخدمين
@@ -260,10 +264,6 @@ if (employees[userId]) {
 if (!liveMessages) liveMessages = {};
 liveMessages[clientId] = text;
 
-};
-  return;
-}
-
 // 👤 لو عميل يرسل → للموظف
   const empId = activeChats[chatId];
 
@@ -290,19 +290,6 @@ if (empId) {
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
-
-
-// =========================
-// 📦 PRODUCTS
-// =========================
-let products = [];
-
-
-// =========================
-// 💬 SESSIONS
-// =========================
-let sessions = {};
-let liveSupportSessions = {};
 
 // =========================
 // 🏪 STORE INFO
