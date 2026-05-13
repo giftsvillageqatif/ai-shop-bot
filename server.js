@@ -153,10 +153,7 @@ bot.on("callback_query", (q) => {
 
     liveMessages[userId] =
 "تم إنهاء المحادثة 👋";
-    
-  });
 
-}
     bot.sendMessage(empId, "تم الإنهاء");
 
     bot.answerCallbackQuery(q.id);
