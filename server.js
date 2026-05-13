@@ -219,43 +219,13 @@ bot.on("message", (msg) => {
   const text = msg.text || "";
   const userId = msg.from.id;
 
-    // 👤 لو عميل يرسل → للموظف
-  const empId = activeChats[chatId];
-
-if (empId) {
-  bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
-  return;
-}
-
-  // 👨‍💼 موظف يرد على عميل (إذا كان مرتبط)
-if (employees[userId]) {
-
-  const clientId = Object.keys(activeChats)
-    .find(id => activeChats[id] === userId);
-  
-  if (clientId) {
-    bot.sendMessage(clientId, `👨‍💼 ${employees[userId].name}:\n${text}`);
-  }
-
-
-  if (clientId) {
-
-// 🔥 إرسال للعميل في الشات API (مو Telegram)
-// نخزن الرسالة عشان /chat يلتقطها
-if (!liveMessages) liveMessages = {};
-liveMessages[clientId] = text;
-
-}
-
-  return;
-}
-
-  // 🔐 تسجيل الموظف
+// 🔐 تسجيل الموظف
   if (!employees[userId] && text === AUTH_PASSWORD) {
     pendingEmployees[userId] = true;
     bot.sendMessage(userId, "اكتب اسمك الآن 👨‍💼");
     return;
   }
+
 
   // 🧑‍💼 حفظ اسم الموظف
   if (pendingEmployees[userId]) {
@@ -266,24 +236,45 @@ liveMessages[clientId] = text;
     return;
   }
 
-   // =========================
-  // 📩 رد الموظف (/reply) لازم يكون قبل أي تحويل
-  // =========================
-  if (text.startsWith("/reply")) {
+  // 👨‍💼 موظف يرد على عميل (إذا كان مرتبط)
+if (employees[userId]) {
 
-    const parts = text.split(" ");
-    const targetUserId = parts[1];
-    const msgText = parts.slice(2).join(" ");
+  const clientId = Object.keys(activeChats)
+    .find(id => activeChats[id] === userId);
 
-    if (targetUserId && msgText) {
-      bot.sendMessage(
-        targetUserId,
-        `👨‍💼 ${employees[userId]?.name || "موظف"}:\n${msgText}`
-      );
-    }
-
+  if (!clientId) {
+    bot.sendMessage(userId, "❌ ما فيه عميل مربوط حالياً");
     return;
   }
+
+  bot.sendMessage(
+    clientId,
+    `👨‍💼 ${employees[userId].name}:\n${text}`
+  );
+
+  return;
+}
+
+// 🔥 إرسال للعميل في الشات API (مو Telegram)
+// نخزن الرسالة عشان /chat يلتقطها
+if (!liveMessages) liveMessages = {};
+liveMessages[clientId] = text;
+
+}
+
+  return;
+}
+  
+// 👤 لو عميل يرسل → للموظف
+  const empId = activeChats[chatId];
+
+if (empId) {
+  bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
+  return;
+}
+
+  if (clientId) {
+
 
  
   // =========================
