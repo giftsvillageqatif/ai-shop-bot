@@ -255,14 +255,15 @@ if (employees[userId]) {
   return;
 }
 
-// 🔥 إرسال للعميل في الشات API (مو Telegram)
+  // 🔥 إرسال للعميل في الشات API (مو Telegram)
 // نخزن الرسالة عشان /chat يلتقطها
 if (!liveMessages) liveMessages = {};
 liveMessages[clientId] = text;
 
+};
   return;
 }
-  
+
 // 👤 لو عميل يرسل → للموظف
   const empId = activeChats[chatId];
 
