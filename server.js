@@ -117,10 +117,12 @@ bot.on("callback_query", (q) => {
   const empId = q.from.id;
   const empName = employees[empId]?.name || "موظف";
     
-   {
-    bot.answerCallbackQuery(q.id, { text: "مستلم من موظف آخر" });
-    return;
-  }
+   if (bridge.webToTelegram[userId]) {
+  bot.answerCallbackQuery(q.id, {
+    text: "مستلم من موظف آخر"
+  });
+  return;
+}
 
     const sessionId = userId;
 bridge.telegramToWeb[empId] = sessionId;
@@ -266,20 +268,6 @@ if (employees[userId]) {
   return;
 }
   
-  // 🔥 إرسال للعميل في الشات API (مو Telegram)
-// نخزن الرسالة عشان /chat يلتقطها
-if (!liveMessages) liveMessages = {};
-
-// 👤 لو عميل يرسل → للموظف
-  
-
-if (empId) {
-  bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
-
-  liveMessages[sessionId] = text;
-  
-  return;
-}
 
  
   // =========================
@@ -897,7 +885,9 @@ app.post("/review", async function (req, res) {
     // NEW: GET CHAT HISTORY
     // =========================
     
-    const history = sessions[sessionId]?.history || [];
+    const sessionId = req.body.sessionId || "guest";
+
+const history = sessions[sessionId]?.history || [];
 
     const chatText = history.map(h => `${h.role}: ${h.content}`).join("\n");
 
