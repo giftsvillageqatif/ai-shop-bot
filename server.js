@@ -195,7 +195,7 @@ if (data.startsWith("close_")) {
 
  function notifyAllEmployees(chatId, message) {
 
-  if (activeChats[chatId]) return;
+  
 
   telegramUsers.forEach(empId => {
 
@@ -604,9 +604,6 @@ ${p.price}
 
       }).join("\n");
 
-    if (sessions[sessionId]?.mode === "human" && !activeChats[sessionId]) {
-  sessions[sessionId].mode = "ai";
-}
     
     if (sessions[sessionId]?.mode === "human") {
 
