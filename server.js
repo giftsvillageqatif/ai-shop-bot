@@ -300,12 +300,11 @@ return;
   // =========================
   // 🔒 fallback (لو مو مسجل)
   // =========================
-  if (!allowedUsers.has(chatId)) {
-    bot.sendMessage(chatId, "🔐 اكتب كلمة الدخول للمتابعة");
-    return;
-  }
-    });
-
+ if (!allowedUsers.has(chatId)) {
+  bot.sendMessage(chatId, "🔐 اكتب كلمة الدخول للمتابعة");
+  return;
+}
+});
 // =========================
 // 🔑 OPENAI
 // =========================
