@@ -106,7 +106,6 @@ bot.on("callback_query", (q) => {
 
   const userId = data.split("_")[1];
   const empId = q.from.id;
-  const empName = employees[empId]?.name || "موظف";
 
   if (activeChats[userId]) {
     bot.answerCallbackQuery(q.id, { text: "مستلم من موظف آخر" });
@@ -114,55 +113,50 @@ bot.on("callback_query", (q) => {
   }
 
   activeChats[userId] = empId;
-  userState[userId] = "human_mode";
 
   sessions[userId] = {
     mode: "human",
-    employeeId: empId
-  };
-
-  liveSupportSessions[userId] = {
     employeeId: empId,
-    employeeName: empName
+    history: sessions[userId]?.history || []
   };
 
-  liveMessages[userId] =
-`👨‍💼 معك موظف خدمة العملاء (${empName})
-كيف أقدر أخدمك؟`;
+  bot.sendMessage(empId, "تم استلام العميل");
 
-  bot.sendMessage(empId,
-`تم ربطك بالعميل ${userId}`, {
-  reply_markup: {
-    inline_keyboard: [[
-      { text: "❌ إنهاء المحادثة", callback_data: `close_${userId}` }
-    ]]
-  }
-});
+  bot.sendMessage(userId,
+    `👨‍💼 تم تحويلك لموظف خدمة العملاء`
+  );
 
   bot.answerCallbackQuery(q.id);
 }
-
   // =========================
   // CLOSE CHAT
   // =========================
-  if (data.startsWith("close_")) {
+ if (data.startsWith("close_")) {
 
   const userId = data.split("_")[1];
   const empId = q.from.id;
+   const clientId = userId;
 
-  delete activeChats[userId];
-  userState[userId] = "bot";
+bot.sendMessage(clientId, "👋 تم إنهاء المحادثة بواسطة الموظف");
 
+   sessions[userId] = {
+  mode: "ai",
+  employeeId: null,
+  history: sessions[userId]?.history || []
+};
+   
   if (sessions[userId]) {
-    sessions[userId].mode = "ai";
+    sessions[userId].mode = "bot";
     sessions[userId].employeeId = null;
   }
 
-  delete liveSupportSessions[userId];
+  delete activeChats[userId];
 
-  liveMessages[userId] = "تم إنهاء المحادثة 👋";
+  bot.sendMessage(userId, "تم إنهاء المحادثة 👋");
 
   bot.sendMessage(empId, "تم الإنهاء");
+
+   
 
   bot.answerCallbackQuery(q.id);
 }
@@ -261,23 +255,14 @@ bot.on("message", (msg) => {
 if (employees[userId]) {
 
   const clientId = Object.keys(activeChats)
-    .find(id => activeChats[id] == userId);
+  .find(id => activeChats[id] === userId);
 
-  if (clientId) {
-
-    if (sessions[clientId]) {
-
-      sessions[clientId].history.push({
-        role: "assistant",
-        content: text
-      });
-
-    }
-
-    return;
-  }
-
+if (clientId) {
+  bot.sendMessage(clientId, `👨‍💼 ${employees[userId].name}:\n${text}`);
 }
+
+return;
+    
   // لو عميل → يرسل للموظف
   bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
 
@@ -339,7 +324,6 @@ let products = [];
 // =========================
 let sessions = {};
 let liveSupportSessions = {};
-let liveMessages = {};
 
 // =========================
 // 🏪 STORE INFO
@@ -523,40 +507,25 @@ if (sessions[sessionId]?.mode === "human") {
   }
 
   return res.json({
-    reply: "👨‍💼 يتم الرد عليك من موظف خدمة العملاء حالياً",
+    reply: "👨‍💼 معك موظف خدمة العملاء الآن",
     support: true
   });
 }
-
-// =========================
-// 🚨 LIVE MESSAGE FROM EMPLOYEE
-// =========================
-if (liveMessages[sessionId]) {
-
-  const msg = liveMessages[sessionId];
-
-  delete liveMessages[sessionId];
-
-  return res.json({
-    reply: msg,
-    support: true
-  });
-}
-
+    
 // =========================
 // 🚨 REQUEST SUPPORT
 // =========================
-if (/خدمة العملاء|موظف|موظفة|دعم|دعم فني|اتكلم مع موظف|ابي موظف|ابغى موظف|بشر|انسان/.test(message)) {
+if (/خدمة العملاء|موظف|دعم|انسان/.test(message)) {
 
   if (!sessions[sessionId]) {
     sessions[sessionId] = {
-      mode: "ai",
+      mode: "bot",
       employeeId: null,
       history: []
     };
   }
 
-  sessions[sessionId].mode = "waiting";
+  sessions[sessionId].mode = "human";
 
   notifyAllEmployees(sessionId, message);
 
