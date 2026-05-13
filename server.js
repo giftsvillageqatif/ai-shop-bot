@@ -276,26 +276,26 @@ return;
   // =========================
   if (text.startsWith("/reply")) {
 
-    const parts = text.split(" ");
-    const targetUserId = parts[1];
-    const msgText = parts.slice(2).join(" ");
+  const parts = text.split(" ");
+  const targetUserId = parts[1];
+  const msgText = parts.slice(2).join(" ");
 
-    if (employees[userId] && sessions[clientId]?.mode === "human") {
-
+  // نحدد العميل الصحيح أولاً
   const clientId = Object.keys(sessions)
     .find(id => sessions[id].employeeId === userId);
 
-  bot.sendMessage(clientId, text);
-
-  return;
-}
-    
-    if (targetUserId && msgText) {
-      bot.sendMessage(targetUserId, msgText);
-    }
-
+  // رد الموظف على العميل المرتبط
+  if (employees[userId] && clientId) {
+    bot.sendMessage(clientId, msgText || text);
     return;
   }
+
+  // رد مباشر لو كتب ID يدوي
+  if (targetUserId && msgText) {
+    bot.sendMessage(targetUserId, msgText);
+    return;
+  }
+}
 
   // =========================
   // 🔒 fallback (لو مو مسجل)
