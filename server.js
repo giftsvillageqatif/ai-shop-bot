@@ -269,8 +269,6 @@ if (employees[userId]) {
 // =========================
 bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
 
-return;
-
   // =========================
   // 📩 رد الموظف على عميل (/reply)
   // =========================
@@ -303,6 +301,7 @@ return;
  if (!allowedUsers.has(chatId)) {
   bot.sendMessage(chatId, "🔐 اكتب كلمة الدخول للمتابعة");
   return;
+ }
 });
 // =========================
 // 🔑 OPENAI
