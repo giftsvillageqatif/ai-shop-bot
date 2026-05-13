@@ -227,6 +227,25 @@ bot.on("message", (msg) => {
     return;
   }
 
+   // =========================
+  // 📩 رد الموظف (/reply) لازم يكون قبل أي تحويل
+  // =========================
+  if (text.startsWith("/reply")) {
+
+    const parts = text.split(" ");
+    const targetUserId = parts[1];
+    const msgText = parts.slice(2).join(" ");
+
+    if (targetUserId && msgText) {
+      bot.sendMessage(
+        targetUserId,
+        `👨‍💼 ${employees[userId]?.name || "موظف"}:\n${msgText}`
+      );
+    }
+
+    return;
+  }
+  
   // 👤 لو عميل يرسل → للموظف
   const empId = activeChats[chatId];
 
@@ -235,36 +254,7 @@ bot.on("message", (msg) => {
     return;
   }
 
-  // =========================
-  // 📩 رد الموظف على عميل (/reply)
-  // =========================
-  if (text.startsWith("/reply")) {
-
-  const parts = text.split(" ");
-  const targetUserId = parts[1];
-  const msgText = parts.slice(2).join(" ");
-
-  // نحدد العميل الصحيح أولاً
-  const clientId = Object.keys(sessions)
-    .find(id => sessions[id].employeeId === userId);
-
-  // رد الموظف على العميل المرتبط
-  if (employees[userId] && clientId) {
-    bot.sendMessage(clientId, msgText || text);
-    return;
-  }
-
-  // رد مباشر لو كتب ID يدوي
-  if (targetUserId && msgText) {
-    bot.sendMessage(
-      targetUserId,
-      `👨‍💼 ${employees[userId]?.name || "موظف"}:\n${msgText}`
-    );
-  }
-
-  return;
-}
-
+ 
   // =========================
   // 🔒 fallback (لو مو مسجل)
   // =========================
