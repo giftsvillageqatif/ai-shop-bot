@@ -210,64 +210,43 @@ bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text || "";
   const userId = msg.from.id;
-  
-  // =========================
-  // 🔐 تسجيل الموظف (كلمة سر)
-  // =========================
-  if (!employees[userId] && text === AUTH_PASSWORD) {
 
+  // 🔐 تسجيل الموظف
+  if (!employees[userId] && text === AUTH_PASSWORD) {
     pendingEmployees[userId] = true;
     bot.sendMessage(userId, "اكتب اسمك الآن 👨‍💼");
     return;
   }
 
-  // =========================
   // 🧑‍💼 حفظ اسم الموظف
-  // =========================
   if (pendingEmployees[userId]) {
-
-    employees[userId] = {
-      name: text
-    };
-
-    telegramUsers.add(userId); // 👈 مهم جدًا
-
+    employees[userId] = { name: text };
+    telegramUsers.add(userId);
     delete pendingEmployees[userId];
-
     bot.sendMessage(userId, `تم تسجيلك 👨‍💼: ${text}`);
     return;
   }
-  
 
-  // =========================
-  // 💬 لو العميل داخل مع موظف
-  // =========================
-  if (userState[chatId] === "human_mode") {
+  // 👤 لو الموظف يرد على عميل
+  if (employees[userId]) {
 
-  const empId = activeChats[chatId];
+    const clientId = Object.keys(activeChats)
+      .find(id => activeChats[id] === userId);
 
-  if (!empId) return;
+    if (clientId) {
+      bot.sendMessage(clientId, `👨‍💼 ${employees[userId].name}:\n${text}`);
+    }
 
- // =========================
-// 👨‍💼 EMPLOYEE REPLY
-// =========================
-
-if (employees[userId]) {
-
-  const clientId = Object.keys(activeChats)
-    .find(id => activeChats[id] === userId);
-
-  if (clientId) {
-    bot.sendMessage(clientId, `👨‍💼 ${employees[userId].name}:\n${text}`);
+    return;
   }
 
-  return;
-}
+  // 👤 لو عميل يرسل → للموظف
+  const empId = activeChats[chatId];
 
-// =========================
-// 👤 CLIENT MESSAGE → EMPLOYEE
-// =========================
-bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
+  if (empId) {
+    bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
+    return;
+  }
 
   // =========================
   // 📩 رد الموظف على عميل (/reply)
