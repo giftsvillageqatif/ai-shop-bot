@@ -126,8 +126,6 @@ bot.on("callback_query", (q) => {
 `👨‍💼 معك موظف خدمة العملاء (${empName})
 كيف أقدر أخدمك؟`;
 
-}
-
     bot.sendMessage(empId,
 `تم ربطك بالعميل ${userId}`, {
   reply_markup: {
