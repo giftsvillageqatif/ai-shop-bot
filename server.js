@@ -338,10 +338,6 @@ let products = [];
 // 💬 SESSIONS
 // =========================
 let sessions = {};
-sessions[sessionId] = {
-  mode: "ai", // أو "human"
-  employeeId: null
-};
 let liveSupportSessions = {};
 let liveMessages = {};
 
@@ -507,12 +503,13 @@ app.post("/chat", async function (req, res) {
 const message =
   req.body.message || "";
 
-    // =========================
-// 📩 LIVE MESSAGE TO CLIENT
-// =========================
-
-const sessionId = req.body.sessionId || "guest";
-const message = req.body.message || "";
+    if (!sessions[sessionId]) {
+  sessions[sessionId] = {
+    mode: "ai",
+    employeeId: null,
+    history: []
+  };
+}
 
 // =========================
 // 💬 HUMAN MODE
