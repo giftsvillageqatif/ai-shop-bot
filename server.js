@@ -99,6 +99,20 @@ bot.on("callback_query", (q) => {
 
   const data = q.data;
 
+  if (data.startsWith("join_")) {
+    // JOIN LOGIC
+  }
+
+  if (data.startsWith("close_")) {
+    // CLOSE LOGIC
+  }
+
+  if (data === "logout") {
+    // LOGOUT LOGIC
+  }
+
+});
+
   // =========================
   // JOIN CHAT
   // =========================
