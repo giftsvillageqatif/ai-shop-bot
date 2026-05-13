@@ -36,7 +36,6 @@ let userState = {};
 let activeChats = {};
 let employees = {};
 let pendingEmployees = {};
-let products = [];
 let sessions = {};
 let liveSupportSessions = {};
 let liveMessages = {};
@@ -262,18 +261,17 @@ if (employees[userId]) {
   // 🔥 إرسال للعميل في الشات API (مو Telegram)
 // نخزن الرسالة عشان /chat يلتقطها
 if (!liveMessages) liveMessages = {};
-liveMessages[clientId] = text;
 
 // 👤 لو عميل يرسل → للموظف
   const empId = activeChats[chatId];
 
 if (empId) {
   bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
+
+  liveMessages[clientId] = text;
+  
   return;
 }
-
-  if (clientId) {
-
 
  
   // =========================
@@ -290,6 +288,11 @@ if (empId) {
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
+
+// =========================
+// 📦 PRODUCTS
+// =========================
+let products = [];
 
 // =========================
 // 🏪 STORE INFO
