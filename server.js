@@ -142,36 +142,33 @@ bot.on("callback_query", (q) => {
   // =========================
   // CLOSE CHAT
   // =========================
- if (data.startsWith("close_")) {
+if (data.startsWith("close_")) {
 
   const userId = data.split("_")[1];
   const empId = q.from.id;
-   const clientId = userId;
 
-bot.sendMessage(clientId, "👋 تم إنهاء المحادثة بواسطة الموظف");
+  // فك الربط
+  delete activeChats[userId];
 
-   sessions[userId] = {
-  mode: "ai",
-  employeeId: null,
-  history: sessions[userId]?.history || []
-};
-   
+  // رجّع وضع AI
   if (sessions[userId]) {
-    sessions[userId].mode = "bot";
-    sessions[userId].employeeId = null;
-  }
+  sessions[userId].mode = "ai";
+}
 
   delete activeChats[userId];
 
-  bot.sendMessage(userId, "تم إنهاء المحادثة 👋");
+  sessions[userId].mode = "ai";
+  sessions[userId].employeeId = null;
 
-  bot.sendMessage(empId, "تم الإنهاء");
+  // إشعار الموظف
+  bot.sendMessage(empId, "تم إنهاء المحادثة");
 
-   
+  // إشعار العميل داخل الشات (مهم جدًا)
+  liveMessages[userId] = "تم إنهاء المحادثة 👋 يمكنك التحدث مجددًا مع المساعد";
 
   bot.answerCallbackQuery(q.id);
 }
-
+  
   // =========================
   // LOGOUT FIX 
   // =========================
@@ -225,20 +222,30 @@ bot.on("message", (msg) => {
     // 👤 لو عميل يرسل → للموظف
   const empId = activeChats[chatId];
 
-  if (empId) {
-    bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
-    return;
-  }
+if (empId) {
+  bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
+  return;
+}
 
   // 👨‍💼 موظف يرد على عميل (إذا كان مرتبط)
 if (employees[userId]) {
 
   const clientId = Object.keys(activeChats)
     .find(id => activeChats[id] === userId);
-
+  
   if (clientId) {
     bot.sendMessage(clientId, `👨‍💼 ${employees[userId].name}:\n${text}`);
   }
+
+
+  if (clientId) {
+
+// 🔥 إرسال للعميل في الشات API (مو Telegram)
+// نخزن الرسالة عشان /chat يلتقطها
+if (!liveMessages) liveMessages = {};
+liveMessages[clientId] = text;
+
+}
 
   return;
 }
@@ -538,6 +545,17 @@ ${message}`
   });
   
 }
+
+    if (liveMessages[sessionId]) {
+
+  const msg = liveMessages[sessionId];
+  delete liveMessages[sessionId];
+
+  return res.json({
+    reply: msg,
+    support: true
+  });
+}
     
     if (!sessions[sessionId]) {
 
@@ -580,6 +598,10 @@ ${p.price}
 
       }).join("\n");
 
+    if (sessions[sessionId]?.mode === "human" && !activeChats[sessionId]) {
+  sessions[sessionId].mode = "ai";
+}
+    
     if (sessions[sessionId]?.mode === "human") {
 
   return res.json({
