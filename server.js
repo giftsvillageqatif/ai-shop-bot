@@ -255,19 +255,21 @@ bot.on("message", (msg) => {
 if (employees[userId]) {
 
   const clientId = Object.keys(activeChats)
-  .find(id => activeChats[id] === userId);
+    .find(id => activeChats[id] === userId);
 
-if (clientId) {
-  bot.sendMessage(clientId, `👨‍💼 ${employees[userId].name}:\n${text}`);
-}
-
-return;
-    
-  // لو عميل → يرسل للموظف
-  bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
+  if (clientId) {
+    bot.sendMessage(clientId, `👨‍💼 ${employees[userId].name}:\n${text}`);
+  }
 
   return;
 }
+
+// =========================
+// 👤 CLIENT MESSAGE → EMPLOYEE
+// =========================
+bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
+
+return;
 
   // =========================
   // 📩 رد الموظف على عميل (/reply)
@@ -302,7 +304,7 @@ return;
     bot.sendMessage(chatId, "🔐 اكتب كلمة الدخول للمتابعة");
     return;
   }
-    
+    });
 
 // =========================
 // 🔑 OPENAI
