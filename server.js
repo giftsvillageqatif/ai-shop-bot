@@ -106,6 +106,7 @@ bot.on("callback_query", (q) => {
 
   const userId = data.split("_")[1];
   const empId = q.from.id;
+  const empName = employees[empId]?.name || "موظف";
 
   if (activeChats[userId]) {
     bot.answerCallbackQuery(q.id, { text: "مستلم من موظف آخر" });
@@ -120,7 +121,17 @@ bot.on("callback_query", (q) => {
     history: sessions[userId]?.history || []
   };
 
-  bot.sendMessage(empId, "تم استلام العميل");
+    // 👇 مهم: إرسال زر الإنهاء للموظف
+  bot.sendMessage(empId,
+    `👨‍💼 أنت الآن تتحدث مع العميل ${userId}`,
+    {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "❌ إنهاء المحادثة", callback_data: `close_${userId}` }]
+        ]
+      }
+    }
+  );
 
   bot.sendMessage(userId,
     `👨‍💼 تم تحويلك لموظف خدمة العملاء`
@@ -211,6 +222,27 @@ bot.on("message", (msg) => {
   const text = msg.text || "";
   const userId = msg.from.id;
 
+    // 👤 لو عميل يرسل → للموظف
+  const empId = activeChats[chatId];
+
+  if (empId) {
+    bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
+    return;
+  }
+
+  // 👨‍💼 موظف يرد على عميل (إذا كان مرتبط)
+if (employees[userId]) {
+
+  const clientId = Object.keys(activeChats)
+    .find(id => activeChats[id] === userId);
+
+  if (clientId) {
+    bot.sendMessage(clientId, `👨‍💼 ${employees[userId].name}:\n${text}`);
+  }
+
+  return;
+}
+
   // 🔐 تسجيل الموظف
   if (!employees[userId] && text === AUTH_PASSWORD) {
     pendingEmployees[userId] = true;
@@ -243,14 +275,6 @@ bot.on("message", (msg) => {
       );
     }
 
-    return;
-  }
-  
-  // 👤 لو عميل يرسل → للموظف
-  const empId = activeChats[chatId];
-
-  if (empId) {
-    bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
     return;
   }
 
