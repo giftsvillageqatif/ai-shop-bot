@@ -39,6 +39,13 @@ let pendingEmployees = {};
 let sessions = {};
 let liveSupportSessions = {};
 let liveMessages = {};
+let bridge = {
+
+  telegramToWeb: {},   // telegramId → sessionId
+
+  webToTelegram: {}    // sessionId → telegramId
+
+};
 
 
 // تحميل المستخدمين
@@ -110,11 +117,15 @@ bot.on("callback_query", (q) => {
   const userId = data.split("_")[1];
   const empId = q.from.id;
   const empName = employees[empId]?.name || "موظف";
-
+    
   if (activeChats[userId]) {
     bot.answerCallbackQuery(q.id, { text: "مستلم من موظف آخر" });
     return;
   }
+
+    const sessionId = userId;
+bridge.telegramToWeb[empId] = sessionId;
+bridge.webToTelegram[sessionId] = empId;
 
   activeChats[userId] = empId;
 
@@ -149,6 +160,10 @@ if (data.startsWith("close_")) {
 
   const userId = data.split("_")[1];
   const empId = q.from.id;
+  const sessionId = userId;
+
+delete bridge.telegramToWeb[empId];
+delete bridge.webToTelegram[sessionId];
 
   // فك الربط
   delete activeChats[userId];
@@ -242,22 +257,25 @@ bot.on("message", (msg) => {
   // 👨‍💼 موظف يرد على عميل (إذا كان مرتبط)
 if (employees[userId]) {
 
-  const clientId = Object.keys(activeChats)
-    .find(id => activeChats[id] === userId);
+  const webSession = bridge.telegramToWeb[userId];
 
-  if (!clientId) {
+  if (!webSession) {
     bot.sendMessage(userId, "❌ ما فيه عميل مربوط حالياً");
     return;
   }
 
-  bot.sendMessage(
-    clientId,
-    `👨‍💼 ${employees[userId].name}:\n${text}`
-  );
+  const messageToClient = `👨‍💼 ${employees[userId].name}:\n${text}`;
+
+  // إرسال للموقع
+  if (!liveMessages) liveMessages = {};
+  liveMessages[webSession] = messageToClient;
+
+  // (اختياري) لو تبي تبقي Telegram إشعار داخلي
+  bot.sendMessage(userId, "✔️ تم إرسال الرسالة");
 
   return;
 }
-
+  
   // 🔥 إرسال للعميل في الشات API (مو Telegram)
 // نخزن الرسالة عشان /chat يلتقطها
 if (!liveMessages) liveMessages = {};
@@ -268,7 +286,7 @@ if (!liveMessages) liveMessages = {};
 if (empId) {
   bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
 
-  liveMessages[clientId] = text;
+  liveMessages[chatId] = text;
   
   return;
 }
@@ -455,6 +473,13 @@ app.post("/chat", async function (req, res) {
 
 const message =
   req.body.message || "";
+
+   const telegramId = bridge.webToTelegram[sessionId];
+
+if (telegramId) {
+  bot.sendMessage(telegramId, `💬 العميل:\n${message}`);
+  sessions[sessionId].mode = "human";
+}
 
     if (!sessions[sessionId]) {
   sessions[sessionId] = {
@@ -882,14 +907,7 @@ app.post("/review", async function (req, res) {
     // NEW: TELEGRAM SEND
     // =========================
     
-    function formatWrapColor(color) {
-      
-      if (color === "blue") return "🔵 أزرق";
-      if (color === "pink") return "🩷 وردي";
-
-return "لا يوجد";
-
-}
+    
     
     await sendTelegramMessage(
       `⭐ تقييم جديد
@@ -922,6 +940,14 @@ ${chatText}`
 
 });
 
+function formatWrapColor(color) {
+      
+      if (color === "blue") return "🔵 أزرق";
+      if (color === "pink") return "🩷 وردي";
+
+return "لا يوجد";
+
+}
 
 // =========================
 // 🚀 START
