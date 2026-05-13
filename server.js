@@ -227,19 +227,6 @@ bot.on("message", (msg) => {
     return;
   }
 
-  // 👤 لو الموظف يرد على عميل
-  if (employees[userId]) {
-
-    const clientId = Object.keys(activeChats)
-      .find(id => activeChats[id] === userId);
-
-    if (clientId) {
-      bot.sendMessage(clientId, `👨‍💼 ${employees[userId].name}:\n${text}`);
-    }
-
-    return;
-  }
-
   // 👤 لو عميل يرسل → للموظف
   const empId = activeChats[chatId];
 
@@ -269,9 +256,13 @@ bot.on("message", (msg) => {
 
   // رد مباشر لو كتب ID يدوي
   if (targetUserId && msgText) {
-    bot.sendMessage(targetUserId, msgText);
-    return;
+    bot.sendMessage(
+      targetUserId,
+      `👨‍💼 ${employees[userId]?.name || "موظف"}:\n${msgText}`
+    );
   }
+
+  return;
 }
 
   // =========================
