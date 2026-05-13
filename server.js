@@ -33,7 +33,6 @@ const AUTH_PASSWORD = process.env.BOT_PASSWORD;
 let allowedUsers = new Set();
 let telegramUsers = new Set();
 let userState = {};
-let activeChats = {};
 let employees = {};
 let pendingEmployees = {};
 let sessions = {};
@@ -118,7 +117,7 @@ bot.on("callback_query", (q) => {
   const empId = q.from.id;
   const empName = employees[empId]?.name || "موظف";
     
-  if (activeChats[userId]) {
+   {
     bot.answerCallbackQuery(q.id, { text: "مستلم من موظف آخر" });
     return;
   }
@@ -127,7 +126,6 @@ bot.on("callback_query", (q) => {
 bridge.telegramToWeb[empId] = sessionId;
 bridge.webToTelegram[sessionId] = empId;
 
-  activeChats[userId] = empId;
 
   sessions[userId] = {
     mode: "human",
@@ -158,35 +156,24 @@ bridge.webToTelegram[sessionId] = empId;
   // =========================
 if (data.startsWith("close_")) {
 
-  const userId = data.split("_")[1];
+  const sessionId = data.split("_")[1];
   const empId = q.from.id;
-  const sessionId = userId;
 
-delete bridge.telegramToWeb[empId];
-delete bridge.webToTelegram[sessionId];
+  delete bridge.telegramToWeb[empId];
+  delete bridge.webToTelegram[sessionId];
 
-  // فك الربط
-  delete activeChats[userId];
+  if (sessions[sessionId]) {
+    sessions[sessionId].mode = "ai";
+    sessions[sessionId].employeeId = null;
+  }
 
-  // رجّع وضع AI
-  if (sessions[userId]) {
-  sessions[userId].mode = "ai";
-}
+  liveMessages[sessionId] =
+    "👋 تم إنهاء المحادثة مع خدمة العملاء";
 
-  delete activeChats[userId];
-
-  sessions[userId].mode = "ai";
-  sessions[userId].employeeId = null;
-
-  // إشعار الموظف
-  bot.sendMessage(empId, "تم إنهاء المحادثة");
-
-  // إشعار العميل داخل الشات (مهم جدًا)
-  liveMessages[userId] = "تم إنهاء المحادثة 👋 يمكنك التحدث مجددًا مع المساعد";
+  bot.sendMessage(empId, "✅ تم إنهاء المحادثة");
 
   bot.answerCallbackQuery(q.id);
 }
-  
   // =========================
   // LOGOUT FIX 
   // =========================
@@ -257,21 +244,24 @@ bot.on("message", (msg) => {
   // 👨‍💼 موظف يرد على عميل (إذا كان مرتبط)
 if (employees[userId]) {
 
-  const sessionId = bridge.telegramToWeb[userId];
+  const sessionId =
+    bridge.telegramToWeb[userId];
 
   if (!sessionId) {
-    bot.sendMessage(userId, "❌ ما فيه عميل مربوط حالياً");
+    bot.sendMessage(
+      userId,
+      "❌ ما فيه عميل مربوط حالياً"
+    );
     return;
   }
 
-  const messageToClient = `👨‍💼 ${employees[userId].name}:\n${text}`;
+  liveMessages[sessionId] =
+    `👨‍💼 ${employees[userId].name}:\n${text}`;
 
-  // إرسال للموقع
-  
-  liveMessages[sessionId] = messageToClient;
-
-  // (اختياري) لو تبي تبقي Telegram إشعار داخلي
-  bot.sendMessage(userId, "✔️ تم إرسال الرسالة");
+  bot.sendMessage(
+    userId,
+    "✔️ تم إرسال الرسالة"
+  );
 
   return;
 }
@@ -281,7 +271,7 @@ if (employees[userId]) {
 if (!liveMessages) liveMessages = {};
 
 // 👤 لو عميل يرسل → للموظف
-  const empId = activeChats[chatId];
+  
 
 if (empId) {
   bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
@@ -474,9 +464,7 @@ app.post("/chat", async function (req, res) {
 const message =
   req.body.message || "";
 
-    const telegramId = bridge.webToTelegram[sessionId];
-
-if (!sessions[sessionId]) {
+    if (!sessions[sessionId]) {
   sessions[sessionId] = {
     mode: "ai",
     employeeId: null,
@@ -484,16 +472,24 @@ if (!sessions[sessionId]) {
   };
 }
 
-if (sessions[sessionId].mode === "human" && telegramId) {
+const telegramId =
+  bridge.webToTelegram[sessionId];
 
-  bot.sendMessage(telegramId, `💬 العميل:\n${message}`);
+if (
+  sessions[sessionId].mode === "human"
+  && telegramId
+) {
+
+  bot.sendMessage(
+    telegramId,
+    `💬 العميل:\n${message}`
+  );
 
   return res.json({
     reply: "👨‍💼 تم إرسال رسالتك للموظف",
     support: true
   });
 }
-
 // =========================
 // 💬 HUMAN MODE
 // =========================
