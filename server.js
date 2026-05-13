@@ -487,9 +487,10 @@ app.post("/chat", async function (req, res) {
   try {
 
     const sessionId =
-      req.body.sessionId ||
-      "guest";
+  req.body.sessionId ||
+  "guest";
 
+const message =
   req.body.message || "";
 
 
@@ -497,16 +498,25 @@ app.post("/chat", async function (req, res) {
 /خدمة العملاء|موظف|موظفة|دعم|دعم فني|اتكلم مع موظف|ابي موظف|ابغى موظف|بشر|انسان/.test(message)
 ) {
 
-    if (userState[chatId] === "waiting") return;
-    
-    userState[chatId] = "waiting";
+  if (userState[sessionId] === "waiting") {
 
-    notifyAllEmployees(chatId, text);
+    return res.json({
+      reply: "⏳ تم تحويلك مسبقًا لخدمة العملاء",
+      support: true
+    });
 
-    bot.sendMessage(chatId, "تم تحويلك لخدمة العملاء ⏳");
-    return;
   }
 
+  userState[sessionId] = "waiting";
+
+  notifyAllEmployees(sessionId, message);
+
+  return res.json({
+    reply: "تم تحويلك لخدمة العملاء ⏳",
+    support: true
+  });
+
+}
   // =========================
 // 💬 LIVE SUPPORT MODE
 // =========================
