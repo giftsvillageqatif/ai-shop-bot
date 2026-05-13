@@ -124,7 +124,7 @@ bot.on("callback_query", (q) => {
   }
 
     const sessionId = userId;
-bridge.telegramToWeb[empId] = userId;
+bridge.telegramToWeb[empId] = sessionId;
 bridge.webToTelegram[sessionId] = empId;
 
   activeChats[userId] = empId;
@@ -163,7 +163,7 @@ if (data.startsWith("close_")) {
   const sessionId = userId;
 
 delete bridge.telegramToWeb[empId];
-delete bridge.webToTelegram[userId];
+delete bridge.webToTelegram[sessionId];
 
   // فك الربط
   delete activeChats[userId];
@@ -257,9 +257,9 @@ bot.on("message", (msg) => {
   // 👨‍💼 موظف يرد على عميل (إذا كان مرتبط)
 if (employees[userId]) {
 
-  const webSession = bridge.telegramToWeb[userId];
+  const sessionId = bridge.telegramToWeb[userId];
 
-  if (!webSession) {
+  if (!sessionId) {
     bot.sendMessage(userId, "❌ ما فيه عميل مربوط حالياً");
     return;
   }
@@ -267,8 +267,8 @@ if (employees[userId]) {
   const messageToClient = `👨‍💼 ${employees[userId].name}:\n${text}`;
 
   // إرسال للموقع
-  if (!liveMessages) liveMessages = {};
-  liveMessages[webSession] = messageToClient;
+  
+  liveMessages[sessionId] = messageToClient;
 
   // (اختياري) لو تبي تبقي Telegram إشعار داخلي
   bot.sendMessage(userId, "✔️ تم إرسال الرسالة");
@@ -286,7 +286,7 @@ if (!liveMessages) liveMessages = {};
 if (empId) {
   bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
 
-  liveMessages[userId] = text;
+  liveMessages[sessionId] = text;
   
   return;
 }
@@ -474,26 +474,24 @@ app.post("/chat", async function (req, res) {
 const message =
   req.body.message || "";
 
-    if (sessions[sessionId]?.mode === "human") {
+    const telegramId = bridge.webToTelegram[sessionId];
 
-  const telegramId = bridge.webToTelegram[sessionId];
-
-  if (!telegramId) return;
-
-  bot.sendMessage(
-    telegramId,
-    `💬 العميل:\n${message}`
-  );
-
-  return;
-}
-
-    if (!sessions[sessionId]) {
+if (!sessions[sessionId]) {
   sessions[sessionId] = {
     mode: "ai",
     employeeId: null,
     history: []
   };
+}
+
+if (sessions[sessionId].mode === "human" && telegramId) {
+
+  bot.sendMessage(telegramId, `💬 العميل:\n${message}`);
+
+  return res.json({
+    reply: "👨‍💼 تم إرسال رسالتك للموظف",
+    support: true
+  });
 }
 
 // =========================
