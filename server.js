@@ -137,6 +137,7 @@ bot.on("callback_query", (q) => {
 
     bot.answerCallbackQuery(q.id);
   }
+});
 
   // =========================
   // CLOSE CHAT
