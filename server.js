@@ -125,8 +125,6 @@ bot.on("callback_query", (q) => {
    liveMessages[userId] = 
 `👨‍💼 معك موظف خدمة العملاء (${empName})
 كيف أقدر أخدمك؟`;
-    
-  });
 
 }
 
