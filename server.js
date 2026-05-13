@@ -303,7 +303,6 @@ return;
  if (!allowedUsers.has(chatId)) {
   bot.sendMessage(chatId, "🔐 اكتب كلمة الدخول للمتابعة");
   return;
-}
 });
 // =========================
 // 🔑 OPENAI
