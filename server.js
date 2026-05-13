@@ -124,7 +124,7 @@ bot.on("callback_query", (q) => {
   }
 
     const sessionId = userId;
-bridge.telegramToWeb[empId] = sessionId;
+bridge.telegramToWeb[empId] = userId;
 bridge.webToTelegram[sessionId] = empId;
 
   activeChats[userId] = empId;
@@ -163,7 +163,7 @@ if (data.startsWith("close_")) {
   const sessionId = userId;
 
 delete bridge.telegramToWeb[empId];
-delete bridge.webToTelegram[sessionId];
+delete bridge.webToTelegram[userId];
 
   // فك الربط
   delete activeChats[userId];
@@ -286,7 +286,7 @@ if (!liveMessages) liveMessages = {};
 if (empId) {
   bot.sendMessage(empId, `💬 عميل ${chatId}\n${text}`);
 
-  liveMessages[chatId] = text;
+  liveMessages[userId] = text;
   
   return;
 }
@@ -474,11 +474,18 @@ app.post("/chat", async function (req, res) {
 const message =
   req.body.message || "";
 
-   const telegramId = bridge.webToTelegram[sessionId];
+    if (sessions[sessionId]?.mode === "human") {
 
-if (telegramId) {
-  bot.sendMessage(telegramId, `💬 العميل:\n${message}`);
-  sessions[sessionId].mode = "human";
+  const telegramId = bridge.webToTelegram[sessionId];
+
+  if (!telegramId) return;
+
+  bot.sendMessage(
+    telegramId,
+    `💬 العميل:\n${message}`
+  );
+
+  return;
 }
 
     if (!sessions[sessionId]) {
