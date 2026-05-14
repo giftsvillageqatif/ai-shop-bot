@@ -452,19 +452,20 @@ if (employeeId) {
   bot.sendMessage(employeeId, `💬 ${sessionId}\n\n${message}`);
 
   return res.json({
-    reply: "",
+    reply: "💬 موظف خدمة العملاء يتابع محادثتك الآن، يرجى الانتظار قليلاً...",
     recommend: false
   });
 }
+      else {
+        // العميل طلب الخدمة لكن لم يستلمه موظف بعد
+        return res.json({ 
+          reply: "👨‍💼 تم تحويلك لخدمة العملاء، انتظر قليلاً حتى يتصل بك أحد موظفينا.",
+          recommend: false 
+        });
+      }
+    }
 
       const isHumanMode = Object.values(employeeSessions).includes(sessionId);
-
-    if (isHumanMode) {
-        // إذا كان الموظف موجوداً، السيرفر يرد فوراً برسالة "الرجاء الانتظار"
-        return res.json({ 
-            reply: "💬 موظف خدمة العملاء يتابع محادثتك الآن، يرجى الانتظار قليلاً..." 
-        });
-    }
 
   if (!supportMode[sessionId]) {
   return res.json({
