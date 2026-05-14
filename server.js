@@ -171,7 +171,7 @@ bot.on("callback_query", (query) => {
 // =========================
 
 bot.on("message", (msg) => {
-
+  
   const chatId = msg.chat.id;
   const text = msg.text || "";
 
@@ -182,9 +182,7 @@ bot.on("message", (msg) => {
 
   const sessionId =
     employeeSessions[chatId];
-
   supportMode[sessionId] = false;
-
   delete employeeSessions[chatId];
 
   io.to(sessionId).emit(
@@ -203,10 +201,16 @@ bot.on("message", (msg) => {
   return;
 }
 
-  if (
-  allowedUsers.has(chatId) &&
-  employeeSessions[chatId]
-) {
+  if (allowedUsers.has(chatId) && employeeSessions[chatId]) {
+  const sessionId = employeeSessions[chatId];
+  
+  // حفظ رسالة الموظف في السجل
+  if (!sessions[sessionId]) sessions[sessionId] = { history: [] };
+  sessions[sessionId].history.push({ role: "assistant (Staff)", content: text });
+
+  io.to(sessionId).emit("human_message", { message: text });
+  return;
+}
 
   const sessionId =
     employeeSessions[chatId];
@@ -480,7 +484,12 @@ app.post("/chat", async function (req, res) {
     const message =
       req.body.message || "";
 
+   // إذا كان العميل في وضع التحدث مع بشر
     if (supportMode[sessionId]) {
+      // أ- حفظ رسالة العميل فوراً في السجل
+      if (!sessions[sessionId]) sessions[sessionId] = { history: [] };
+      sessions[sessionId].history.push({ role: "user", content: message });
+      
   const employeeId = Object.keys(employeeSessions)
   .find(id => employeeSessions[id] === sessionId);
 
@@ -499,6 +508,18 @@ if (employeeId) {
         });
       }
     }
+
+    if (supportMode[sessionId]) {
+  const employeeId = Object.keys(employeeSessions).find(id => employeeSessions[id] === sessionId);
+
+  // حفظ رسالة العميل في السجل حتى وهو يتحدث مع موظف
+  if (!sessions[sessionId]) sessions[sessionId] = { history: [] };
+  sessions[sessionId].history.push({ role: "user", content: message });
+
+  if (employeeId) {
+    bot.sendMessage(employeeId, `💬 ${sessionId}\n\n${message}`);
+    return res.json({ reply: "", recommend: false });
+  } else {
 
     const lower =
   message.toLowerCase();
