@@ -7,6 +7,13 @@ import TelegramBot from "node-telegram-bot-api";
 import http from "http";
 import { Server } from "socket.io";
 
+function isWorkTime() {
+  const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Riyadh"}));
+  const day = now.getDay(); // 0 الأحد، 4 الخميس
+  const hour = now.getHours();
+  return (day >= 0 && day <= 4) && (hour >= 10 && hour < 23);
+}
+
 const app = express();
 const server = http.createServer(app);
 
@@ -465,8 +472,20 @@ if (
       lower.includes("خدمة العملاء") ||
       lower.includes("موظف") ||
       lower.includes("بشري")
+      || lower === "حولني"  
     ) {
 
+  if (wantsSupport) {
+      // إذا كان نعم والعميل لم يطلب موظف أصلاً، نتأكد أنه يقصد التحويل
+      // (هذا يحمي من تحويل العميل لو كتب "نعم" رداً على شيء آخر)
+      
+      if (!isWorkTime()) {
+        return res.json({
+          reply: "معذرة، ساعات عمل خدمة العملاء من الساعة 10 صباحاً وحتى 11 مساءً أيام الأسبوع (الأحد - الخميس). كيف يمكنني مساعدتك الآن؟",
+          recommend: false
+        });
+      }
+    
       supportMode[sessionId] = true;
   pendingSupport[sessionId] = true;
 
@@ -563,6 +582,10 @@ ${p.price}
 - التفاعل الطبيعي
 - اقتراح منتجات مناسبة
 - الإجابة عن أسئلة المتجر فقط
+- إذا سأل العميل عن "خدمة العملاء" أو "موظف": أخبريه أنكِ تستطيعين المساعدة، ولكن إذا أصر، قولي له "هل تريد تحويلك لخدمة العملاء؟".
+- إذا واجه العميل مشكلة فنية أو شكوى لا تستطيعين حلها: قولي "عذراً لا أستطيع حل هذه المشكلة، هل ترغب في التواصل مع خدمة العملاء؟ اكتب (حولني) للتحويل".
+- لا تقومي بالتحويل تلقائياً، انتظري كلمة "حولني" من العميل.
+- إذا وافق العميل، اطلبي منه كتابة "حولني" بوضوح.
 
 إذا احتجتِ ترشيح منتجات:
 
