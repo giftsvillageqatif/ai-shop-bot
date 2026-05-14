@@ -412,23 +412,21 @@ app.get("/", function (req, res) {
 });
 
 
+
+// =========================
+// 📡 SOCKET.IO CONNECTION
+// =========================
+io.on("connection", (socket) => {
+  socket.on("register", (sessionId) => {
+    socket.join(sessionId);
+    clientSockets[sessionId] = socket.id;
+    console.log("✅ CLIENT CONNECTED:", sessionId);
+  });
+});
+
 // =========================
 // 💬 CHAT
 // =========================
-
-io.on("connection", (socket) => {
-
-  socket.on("register", (sessionId) => {
-
-    socket.join(sessionId);
-
-    clientSockets[sessionId] = socket.id;
-
-    console.log("✅ CLIENT CONNECTED:", sessionId);
-
-  });
-
-});
 
 app.post("/chat", async function (req, res) {
 
@@ -438,56 +436,27 @@ app.post("/chat", async function (req, res) {
       req.body.sessionId ||
       "guest";
 
-
     const message =
       req.body.message || "";
 
     if (supportMode[sessionId]) {
-
   const employeeId = Object.keys(employeeSessions)
   .find(id => employeeSessions[id] === sessionId);
 
 if (employeeId) {
-
   bot.sendMessage(employeeId, `💬 ${sessionId}\n\n${message}`);
 
   return res.json({
     reply: "💬 موظف خدمة العملاء يتابع محادثتك الآن، يرجى الانتظار قليلاً...",
     recommend: false
   });
-}
-      else {
+} else {
         // العميل طلب الخدمة لكن لم يستلمه موظف بعد
         return res.json({ 
           reply: "👨‍💼 تم تحويلك لخدمة العملاء، انتظر قليلاً حتى يتصل بك أحد موظفينا.",
           recommend: false 
         });
       }
-    }
-
-      const isHumanMode = Object.values(employeeSessions).includes(sessionId);
-
-  if (!supportMode[sessionId]) {
-  return res.json({
-    reply: "👨‍💼 تم تحويلك لخدمة العملاء، انتظر قليلاً",
-    recommend: false
-  });
-}
-
-return res.json({
-  reply: "",
-  recommend: false
-});
-}
-
-    if (!sessions[sessionId]) {
-
-      sessions[sessionId] = {
-
-        history: []
-
-      };
-
     }
 
     const lower =
@@ -499,12 +468,7 @@ if (
     ) {
 
       supportMode[sessionId] = true;
-
-      io.to(sessionId).emit("human_mode", {
-        status: true
-      });
-
-      pendingSupport[sessionId] = true;
+  pendingSupport[sessionId] = true;
 
       telegramUsers.forEach((id) => {
         bot.sendMessage(
@@ -531,11 +495,21 @@ ${message}`,
       });
 
       // ✅ أضفنا إرجاع رسالة للمستخدم وإيقاف الكود هنا عشان ما يكمل للذكاء الاصطناعي
-      return res.json({
+      io.to(sessionId).emit("human_mode", { status: true });
+  return res.json({
         reply: "👨‍💼 تم إبلاغ خدمة العملاء، سيتم الرد عليك في أقرب وقت.",
         recommend: false
       });
-    } // ✅✅✅ هذا هو القوس الناقص اللي كان مسبب الخطأ (إغلاق الـ if)
+    } 
+
+    if (!sessions[sessionId]) {
+      sessions[sessionId] = { history: [] };
+    }
+
+    const session = sessions[sessionId];
+    session.history.push({ role: "user", content: message });
+
+    
 
     const session =
       sessions[sessionId];
