@@ -524,9 +524,6 @@ ${message}`,
     const session = sessions[sessionId];
     session.history.push({ role: "user", content: message });
 
-
-    session.history.push({
-
       role: "user",
 
       content: message
@@ -577,6 +574,7 @@ ${p.price}
 - فهم العميل
 - التفاعل الطبيعي
 - اقتراح منتجات مناسبة
+- كوني لطيفة وودودة
 - الإجابة عن أسئلة المتجر فقط
 - إذا سأل العميل عن "خدمة العملاء" أو "موظف": أخبريه أنكِ تستطيعين المساعدة، ولكن إذا أصر، قولي له "هل تريد تحويلك لخدمة العملاء؟".
 - إذا واجه العميل مشكلة فنية أو شكوى لا تستطيعين حلها: قولي "عذراً لا أستطيع حل هذه المشكلة، هل ترغب في التواصل مع خدمة العملاء؟ اكتب (حولني) للتحويل".
@@ -634,16 +632,11 @@ ${catalog}
       safeJson(content);
 
     if (!parsed) {
-
       return res.json({
-
         reply:
-          "🌸 ممكن توضّح لي أكثر؟",
-
+          content.replace(/\{.*\}/g, "").trim() || "🌸 ممكن توضّح لي أكثر؟",
         recommend: false
-
       });
-
     }
 
     // =========================
@@ -752,7 +745,6 @@ ${catalog}
     });
       
   } catch (err) {
-
     console.log(
       "❌ CHAT ERROR:",
       err
