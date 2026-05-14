@@ -509,10 +509,6 @@ ${message}`,
     const session = sessions[sessionId];
     session.history.push({ role: "user", content: message });
 
-    
-
-    const session =
-      sessions[sessionId];
 
     session.history.push({
 
