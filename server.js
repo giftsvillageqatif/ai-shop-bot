@@ -413,6 +413,8 @@ app.get("/", function (req, res) {
 // =========================
 // 💬 CHAT
 // =========================
+const isHumanActive = supportMode[sessionId] === true;
+
 io.on("connection", (socket) => {
 
   socket.on("register", (sessionId) => {
@@ -451,10 +453,17 @@ app.post("/chat", async function (req, res) {
     );
   }
 
+  if (!supportMode[sessionId]) {
   return res.json({
-    reply: "👨‍💼 تم إرسال رسالتك لخدمة العملاء",
+    reply: "👨‍💼 تم تحويلك لخدمة العملاء، انتظر قليلاً",
     recommend: false
   });
+}
+
+return res.json({
+  reply: "",
+  recommend: false
+});
 }
 
     if (!sessions[sessionId]) {
