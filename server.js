@@ -447,7 +447,7 @@ if (employeeId) {
   bot.sendMessage(employeeId, `💬 ${sessionId}\n\n${message}`);
 
   return res.json({
-    reply: "💬 موظف خدمة العملاء يتابع محادثتك الآن، يرجى الانتظار قليلاً...",
+    reply: "",
     recommend: false
   });
 } else {
