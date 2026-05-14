@@ -225,7 +225,7 @@ bot.on("message", (msg) => {
   );
 
   return;
-}
+
 
   // إذا المستخدم مسجل مسبقًا
   if (allowedUsers.has(chatId)) {
