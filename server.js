@@ -432,6 +432,39 @@ io.on("connection", (socket) => {
 });
 
 // =========================
+// 🏁 END SUPPORT ROUTE (هنا المكان الصحيح مستقلة)
+// =========================
+app.post("/end-support", async function (req, res) {
+  try {
+    const { sessionId } = req.body;
+
+    if (supportMode[sessionId]) {
+      // 1. إيقاف وضع الدعم للعميل
+      supportMode[sessionId] = false;
+      delete pendingSupport[sessionId];
+
+      // 2. إبلاغ الموظف في تليجرام أن العميل أنهى المحادثة
+      const employeeId = Object.keys(employeeSessions).find(id => employeeSessions[id] === sessionId);
+      if (employeeId) {
+        bot.sendMessage(employeeId, `🏁 العميل ${sessionId} قام بإنهاء المحادثة.`);
+        delete employeeSessions[employeeId];
+      }
+
+      // 3. إرسال تأكيد للعميل عبر Socket ليعرف المتصفح أن الوضع تغير
+      io.to(sessionId).emit("human_end", { 
+        message: "🌸 تم إنهاء المحادثة، ياسمين معكِ الآن لمساعدتك." 
+      });
+
+      return res.json({ success: true });
+    }
+    res.json({ success: false, message: "المحادثة غير فعالة" });
+  } catch (err) {
+    console.log("❌ END SUPPORT ERROR:", err);
+    res.status(500).json({ success: false });
+  }
+});
+
+// =========================
 // 💬 CHAT
 // =========================
 
