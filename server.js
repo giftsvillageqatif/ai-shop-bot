@@ -480,49 +480,50 @@ return res.json({
 
     const lower =
   message.toLowerCase();
+if (
+      lower.includes("خدمة العملاء") ||
+      lower.includes("موظف") ||
+      lower.includes("بشري")
+    ) {
 
-    if (
-  lower.includes("خدمة العملاء") ||
-  lower.includes("موظف") ||
-  lower.includes("بشري")
-) {
+      supportMode[sessionId] = true;
 
-  supportMode[sessionId] = true;
+      io.to(sessionId).emit("human_mode", {
+        status: true
+      });
 
-      io.to(sessionId).emit("human_mode", {
-  status: true
-});
+      pendingSupport[sessionId] = true;
 
- pendingSupport[sessionId] = true;
-
-telegramUsers.forEach((id) => {
-
-  bot.sendMessage(
-    id,
-
+      telegramUsers.forEach((id) => {
+        bot.sendMessage(
+          id,
 `📞 عميل جديد يحتاج خدمة العملاء
 
 🆔 ${sessionId}
 
 💬 الرسالة:
 ${message}`,
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: "✅ استلام العميل",
+                    callback_data: `take_${sessionId}`
+                  }
+                ]
+              ]
+            }
+          }
+        );
+      });
 
-{
-  reply_markup: {
-    inline_keyboard: [
-      [
-        {
-          text: "✅ استلام العميل",
-          callback_data: `take_${sessionId}`
-        }
-      ]
-    ]
-  }
-}
-
-  );
-
-});
+      // ✅ أضفنا إرجاع رسالة للمستخدم وإيقاف الكود هنا عشان ما يكمل للذكاء الاصطناعي
+      return res.json({
+        reply: "👨‍💼 تم إبلاغ خدمة العملاء، سيتم الرد عليك في أقرب وقت.",
+        recommend: false
+      });
+    } // ✅✅✅ هذا هو القوس الناقص اللي كان مسبب الخطأ (إغلاق الـ if)
 
     const session =
       sessions[sessionId];
