@@ -449,6 +449,12 @@ app.post("/chat", async function (req, res) {
       req.body.sessionId ||
       "guest";
 
+    const rating = req.body.rating || 0;
+    
+    // سحب المحادثة التي تم تخزينها في دالة الـ chat
+    const session = sessions[sessionId];
+    const history = session ? session.history : [];
+
     const message =
       req.body.message || "";
 
