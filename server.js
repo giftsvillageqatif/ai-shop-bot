@@ -203,6 +203,8 @@ bot.on("message", (msg) => {
   const sessionId =
     employeeSessions[chatId];
 
+    console.log(`📤 محاولة إرسال رسالة من التليجرام إلى الـ Session: ${sessionId}`);
+    
   io.to(sessionId).emit(
     "human_message",
     {
@@ -454,6 +456,15 @@ if (employeeId) {
     recommend: false
   });
 }
+
+      const isHumanMode = Object.values(employeeSessions).includes(sessionId);
+
+    if (isHumanMode) {
+        // إذا كان الموظف موجوداً، السيرفر يرد فوراً برسالة "الرجاء الانتظار"
+        return res.json({ 
+            reply: "💬 موظف خدمة العملاء يتابع محادثتك الآن، يرجى الانتظار قليلاً..." 
+        });
+    }
 
   if (!supportMode[sessionId]) {
   return res.json({
