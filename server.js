@@ -831,7 +831,6 @@ app.post("/review", async function (req, res) {
     const employeeId = Object.keys(employeeSessions).find(id => employeeSessions[id] === sessionId);
     
     // 2. جلب اسم الموظف من القائمة (إذا لم يوجد نضع "غير معروف")
-    const employeeId = Object.keys(employeeSessions).find(id => employeeSessions[id] === sessionId);
     const employeeName = employeeId ? (userNames[employeeId] || "موظف خدمة العملاء") : "ياسمين (الذكاء الاصطناعي)";
 
     let reviews = [];
