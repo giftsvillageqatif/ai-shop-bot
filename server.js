@@ -413,7 +413,7 @@ app.get("/", function (req, res) {
 // =========================
 // 💬 CHAT
 // =========================
-const isHumanActive = supportMode[sessionId] = true;
+const isHumanActive = supportMode[sessionId] === true;
 
 io.on("connection", (socket) => {
 
