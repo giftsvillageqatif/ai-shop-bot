@@ -1,0 +1,23 @@
+{
+  "name": "yasmin-ai-store",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.19.2",
+    "node-telegram-bot-api": "^0.63.0",
+    "nodemailer": "^8.0.7",
+    "openai": "^4.52.7",
+    "socket.io": "^4.8.3"
+  },
+  "overrides": {
+    "form-data": "^4.0.0",
+    "qs": "^6.11.0",
+    "tough-cookie": "^4.1.3"
+  }
+}
