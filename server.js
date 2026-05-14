@@ -212,6 +212,9 @@ bot.on("message", (msg) => {
     employeeSessions[chatId];
 
     console.log(`📤 محاولة إرسال رسالة من التليجرام إلى الـ Session: ${sessionId}`);
+
+    if (!sessions[sessionId]) sessions[sessionId] = { history: [] };
+    sessions[sessionId].history.push({ role: "assistant", content: `(موظف): ${text}` });
     
   io.to(sessionId).emit(
     "human_message",
@@ -483,6 +486,9 @@ app.post("/chat", async function (req, res) {
     if (supportMode[sessionId]) {
   const employeeId = Object.keys(employeeSessions)
   .find(id => employeeSessions[id] === sessionId);
+
+      if (!sessions[sessionId]) sessions[sessionId] = { history: [] };
+    sessions[sessionId].history.push({ role: "user", content: message });
 
 if (employeeId) {
   bot.sendMessage(employeeId, `💬 ${sessionId}\n\n${message}`);
