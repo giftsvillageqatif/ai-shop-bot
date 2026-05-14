@@ -4,8 +4,17 @@ import xlsx from "xlsx";
 import fs from "fs";
 import OpenAI from "openai";
 import TelegramBot from "node-telegram-bot-api";
+import http from "http";
+import { Server } from "socket.io";
 
 const app = express();
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: "*"
+  }
+});
 
 app.use(express.json({ limit: "10mb" }));
 app.use(cors());
@@ -86,6 +95,54 @@ bot.on("callback_query", (query) => {
 
   console.log("BUTTON:", data);
 
+  if (data.startsWith("take_")) {
+
+  const sessionId =
+    data.replace("take_", "");
+
+  if (!pendingSupport[sessionId]) {
+
+    bot.answerCallbackQuery(
+      query.id,
+      {
+        text:
+          "❌ العميل تم استلامه بالفعل"
+      }
+    );
+
+    return;
+  }
+
+  delete pendingSupport[sessionId];
+
+  employeeSessions[chatId] =
+    sessionId;
+
+    supportMode[sessionId] = true;
+pendingSupport[sessionId] = true;
+    
+  bot.sendMessage(
+    chatId,
+
+`✅ تم استلام العميل
+
+🆔 ${sessionId}
+
+✍️ أي رسالة ترسلها ستصل للعميل مباشرة
+
+⛔ لإنهاء المحادثة:
+/end`
+  );
+
+  bot.answerCallbackQuery(
+    query.id
+
+    
+  );
+
+  return;
+}
+
   if (data === "logout") {
 
     // أول شيء أرسل الرسالة
@@ -109,6 +166,52 @@ bot.on("message", (msg) => {
 
   const chatId = msg.chat.id;
   const text = msg.text || "";
+
+  if (
+  text === "/end" &&
+  employeeSessions[chatId]
+) {
+
+  const sessionId =
+    employeeSessions[chatId];
+
+  supportMode[sessionId] = false;
+
+  delete employeeSessions[chatId];
+
+  io.to(sessionId).emit(
+    "human_end",
+    {
+      message:
+        "🌸 انتهت المحادثة مع خدمة العملاء"
+    }
+  );
+
+  bot.sendMessage(
+    chatId,
+    "✅ تم إنهاء المحادثة"
+  );
+
+  return;
+}
+
+  if (
+  allowedUsers.has(chatId) &&
+  employeeSessions[chatId]
+) {
+
+  const sessionId =
+    employeeSessions[chatId];
+
+  io.to(sessionId).emit(
+    "human_message",
+    {
+      message: text
+    }
+  );
+
+  return;
+}
 
   // إذا المستخدم مسجل مسبقًا
   if (allowedUsers.has(chatId)) {
@@ -153,6 +256,10 @@ let products = [];
 // 💬 SESSIONS
 // =========================
 let sessions = {};
+let supportMode = {};
+let clientSockets = {};
+let employeeSessions = {};
+let pendingSupport = {};
 
 
 // =========================
@@ -306,6 +413,20 @@ app.get("/", function (req, res) {
 // =========================
 // 💬 CHAT
 // =========================
+io.on("connection", (socket) => {
+
+  socket.on("register", (sessionId) => {
+
+    socket.join(sessionId);
+
+    clientSockets[sessionId] = socket.id;
+
+    console.log("✅ CLIENT CONNECTED:", sessionId);
+
+  });
+
+});
+
 app.post("/chat", async function (req, res) {
 
   try {
@@ -318,6 +439,24 @@ app.post("/chat", async function (req, res) {
     const message =
       req.body.message || "";
 
+    if (supportMode[sessionId]) {
+
+  const employeeId = Object.keys(employeeSessions)
+    .find(id => employeeSessions[id] === sessionId);
+
+  if (employeeId) {
+    bot.sendMessage(
+      employeeId,
+      `💬 ${sessionId}\n\n${message}`
+    );
+  }
+
+  return res.json({
+    reply: "👨‍💼 تم إرسال رسالتك لخدمة العملاء",
+    recommend: false
+  });
+}
+
     if (!sessions[sessionId]) {
 
       sessions[sessionId] = {
@@ -327,6 +466,63 @@ app.post("/chat", async function (req, res) {
       };
 
     }
+
+    const lower =
+  message.toLowerCase();
+
+    if (
+  lower.includes("خدمة العملاء") ||
+  lower.includes("موظف") ||
+  lower.includes("بشري")
+) {
+
+  supportMode[sessionId] = true;
+
+      io.to(sessionId).emit("human_mode", {
+  status: true
+});
+
+ pendingSupport[sessionId] = true;
+
+telegramUsers.forEach((id) => {
+
+  bot.sendMessage(
+    id,
+
+`📞 عميل جديد يحتاج خدمة العملاء
+
+🆔 ${sessionId}
+
+💬 الرسالة:
+${message}`,
+
+{
+  reply_markup: {
+    inline_keyboard: [
+      [
+        {
+          text: "✅ استلام العميل",
+          callback_data: `take_${sessionId}`
+        }
+      ]
+    ]
+  }
+}
+
+  );
+
+});
+
+  return res.json({
+
+    reply:
+      "👨‍💼 تم تحويلك لخدمة العملاء، انتظر قليلًا.",
+
+    recommend: false
+
+  });
+
+}
 
     const session =
       sessions[sessionId];
@@ -684,7 +880,7 @@ ${chatText}`
 const PORT =
   process.env.PORT || 3000;
 
-app.listen(PORT, function () {
+server.listen(PORT, function () {
 
   console.log(
     "🌸 SERVER RUNNING:",
