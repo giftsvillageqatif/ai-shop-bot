@@ -524,12 +524,6 @@ ${message}`,
     const session = sessions[sessionId];
     session.history.push({ role: "user", content: message });
 
-      role: "user",
-
-      content: message
-
-    });
-
     const catalog =
       products.map(function (p) {
 
