@@ -212,21 +212,6 @@ bot.on("message", (msg) => {
   return;
 }
 
-  const sessionId =
-    employeeSessions[chatId];
-
-    console.log(`📤 محاولة إرسال رسالة من التليجرام إلى الـ Session: ${sessionId}`);
-    
-  io.to(sessionId).emit(
-    "human_message",
-    {
-      message: text
-    }
-  );
-
-  return;
-
-
   // إذا المستخدم مسجل مسبقًا
   if (allowedUsers.has(chatId)) {
     console.log("User allowed:", chatId);
@@ -516,10 +501,6 @@ if (employeeId) {
   if (!sessions[sessionId]) sessions[sessionId] = { history: [] };
   sessions[sessionId].history.push({ role: "user", content: message });
 
-  if (employeeId) {
-    bot.sendMessage(employeeId, `💬 ${sessionId}\n\n${message}`);
-    return res.json({ reply: "", recommend: false });
-  } else {
 
     const lower =
   message.toLowerCase();
@@ -785,31 +766,21 @@ ${catalog}
     }
 
     return res.json({
-
       reply:
         parsed.reply,
-
       recommend: false
 
     });
       
   } catch (err) {
-    console.log(
-      "❌ CHAT ERROR:",
-      err
-    );
-
+    console.log("❌ CHAT ERROR:",err);
     return res.json({
-
       reply:
         "🌸 ياسمين لديها خلل تقني مؤقت",
-
       recommend: false
 
     });
-
   }
-
 });
 
 
