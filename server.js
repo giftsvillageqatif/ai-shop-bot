@@ -251,16 +251,9 @@ bot.on("message", (msg) => {
   return;
 }
 
-  // إذا المستخدم مسجل مسبقًا
-  if (allowedUsers.has(chatId)) {
-    console.log("User allowed:", chatId);
-    return;
-  }
-
   if (allowedUsers.has(chatId) && !userNames[chatId]) {
     userNames[chatId] = text; // حفظ النص المرسل كاسم
     saveUserNames();
-    
     bot.sendMessage(chatId, `✅ تم اعتماد الاسم: ${text}\nأهلاً بك في نظام قرية الهدايا 🌸`);
     sendMenu(chatId);
     return;
@@ -268,7 +261,6 @@ bot.on("message", (msg) => {
 
   // إذا كتب كلمة السر الصحيحة
   if (text === AUTH_PASSWORD) {
-
     allowedUsers.add(chatId);
     telegramUsers.add(chatId);
     saveAllowedUsers();
