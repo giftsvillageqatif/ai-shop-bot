@@ -151,6 +151,9 @@ bot.on("callback_query", (query) => {
 
   employeeSessions[chatId] = sessionId;
   supportMode[sessionId] = true;
+
+    if (!sessions[sessionId]) sessions[sessionId] = { history: [] };
+sessions[sessionId].handledBy = userNames[chatId] || "موظف خدمة العملاء";
     
   bot.sendMessage(
     chatId,
@@ -213,7 +216,7 @@ bot.on("message", (msg) => {
   allowedUsers.has(chatId) && employeeSessions[chatId]) {
   const sessionId = employeeSessions[chatId];
     if (!sessions[sessionId]) sessions[sessionId] = { history: [] };
-    sessions[sessionId].history.push({ role: "assistant", content: `(موظف): ${text}` });
+    sessions[sessionId].history.push({ role: "assistant", content: `(الموظف): ${text}` });
     
   io.to(sessionId).emit("human_message", { message: text });
 return;
