@@ -413,7 +413,6 @@ app.get("/", function (req, res) {
 // =========================
 // 💬 CHAT
 // =========================
-const isHumanActive = supportMode[sessionId] === true;
 
 io.on("connection", (socket) => {
 
@@ -444,14 +443,17 @@ app.post("/chat", async function (req, res) {
     if (supportMode[sessionId]) {
 
   const employeeId = Object.keys(employeeSessions)
-    .find(id => employeeSessions[id] === sessionId);
+  .find(id => employeeSessions[id] === sessionId);
 
-  if (employeeId) {
-    bot.sendMessage(
-      employeeId,
-      `💬 ${sessionId}\n\n${message}`
-    );
-  }
+if (employeeId) {
+
+  bot.sendMessage(employeeId, `💬 ${sessionId}\n\n${message}`);
+
+  return res.json({
+    reply: "",
+    recommend: false
+  });
+}
 
   if (!supportMode[sessionId]) {
   return res.json({
@@ -521,17 +523,6 @@ ${message}`,
   );
 
 });
-
-  return res.json({
-
-    reply:
-      "👨‍💼 تم تحويلك لخدمة العملاء، انتظر قليلًا.",
-
-    recommend: false
-
-  });
-
-}
 
     const session =
       sessions[sessionId];
