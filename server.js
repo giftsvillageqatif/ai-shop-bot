@@ -36,6 +36,7 @@ const AUTH_PASSWORD = process.env.BOT_PASSWORD;
 // المستخدمين
 let allowedUsers = new Set();
 let telegramUsers = new Set();
+let userNames = {};
 
 
 // تحميل المستخدمين
@@ -53,6 +54,13 @@ try {
   telegramUsers = new Set();
 }
 
+try {
+  const data = fs.readFileSync("./user_names.json", "utf8");
+  userNames = JSON.parse(data);
+} catch {
+  userNames = {};
+}
+
 // حفظ المستخدمين
 function saveAllowedUsers() {
   fs.writeFileSync(
@@ -65,6 +73,13 @@ function saveUsers() {
   fs.writeFileSync(
     "./telegram_users.json",
     JSON.stringify([...telegramUsers], null, 2)
+  );
+}
+
+function saveUserNames() {
+  fs.writeFileSync(
+    "./user_names.json",
+    JSON.stringify(userNames, null, 2)
   );
 }
 
@@ -106,6 +121,14 @@ bot.on("callback_query", (query) => {
 
   const sessionId =
     data.replace("take_", "");
+
+    if (employeeSessions[chatId]) {
+      bot.answerCallbackQuery(query.id, {
+        text: "⚠️ لا يمكنك استلام عميل جديد قبل إنهاء المحادثة الحالية! (أرسل /end أولاً)",
+        show_alert: true // ستظهر رسالة تنبيه للموظف في التليجرام
+      });
+      return;
+    }
 
   if (!pendingSupport[sessionId]) {
 
@@ -159,9 +182,11 @@ bot.on("callback_query", (query) => {
     
     allowedUsers.delete(chatId);
     telegramUsers.delete(chatId);
+  delete userNames[chatId];
 
     saveUsers();
     saveAllowedUsers();
+  saveUserNames();
 
   bot.answerCallbackQuery(query.id);
 });
@@ -229,6 +254,15 @@ bot.on("message", (msg) => {
   // إذا المستخدم مسجل مسبقًا
   if (allowedUsers.has(chatId)) {
     console.log("User allowed:", chatId);
+    return;
+  }
+
+  if (allowedUsers.has(chatId) && !userNames[chatId]) {
+    userNames[chatId] = text; // حفظ النص المرسل كاسم
+    saveUserNames();
+    
+    bot.sendMessage(chatId, `✅ تم اعتماد الاسم: ${text}\nأهلاً بك في نظام قرية الهدايا 🌸`);
+    sendMenu(chatId);
     return;
   }
 
