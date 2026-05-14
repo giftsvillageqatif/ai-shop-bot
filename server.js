@@ -117,16 +117,17 @@ bot.on("callback_query", (query) => {
       }
     );
 
+    bot.editMessageText("⚠️ تم استلام هذا العميل بالفعل.", {
+      chat_id: chatId,
+      message_id: query.message.message_id
+    });
     return;
   }
 
   delete pendingSupport[sessionId];
 
-  employeeSessions[chatId] =
-    sessionId;
-
-    supportMode[sessionId] = true;
-pendingSupport[sessionId] = true;
+  employeeSessions[chatId] = sessionId;
+  supportMode[sessionId] = true;
     
   bot.sendMessage(
     chatId,
