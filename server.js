@@ -200,55 +200,23 @@ bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text || "";
 
+  if (text === "/end" && employeeSessions[chatId]) {
+    const sessionId = employeeSessions[chatId];
+    supportMode[sessionId] = false;
+    delete employeeSessions[chatId];
+    io.to(sessionId).emit("human_end", { message: "🌸 انتهت المحادثة مع خدمة العملاء" });
+    bot.sendMessage(chatId, "✅ تم إنهاء المحادثة");
+    return;
+  }
+  
   if (
-  text === "/end" &&
-  employeeSessions[chatId]
-) {
-
-  const sessionId =
-    employeeSessions[chatId];
-
-  supportMode[sessionId] = false;
-
-  delete employeeSessions[chatId];
-
-  io.to(sessionId).emit(
-    "human_end",
-    {
-      message:
-        "🌸 انتهت المحادثة مع خدمة العملاء"
-    }
-  );
-
-  bot.sendMessage(
-    chatId,
-    "✅ تم إنهاء المحادثة"
-  );
-
-  return;
-}
-
-  if (
-  allowedUsers.has(chatId) &&
-  employeeSessions[chatId]
-) {
-
-  const sessionId =
-    employeeSessions[chatId];
-
-    console.log(`📤 محاولة إرسال رسالة من التليجرام إلى الـ Session: ${sessionId}`);
-
+  allowedUsers.has(chatId) && employeeSessions[chatId]) {
+  const sessionId = employeeSessions[chatId];
     if (!sessions[sessionId]) sessions[sessionId] = { history: [] };
     sessions[sessionId].history.push({ role: "assistant", content: `(موظف): ${text}` });
     
-  io.to(sessionId).emit(
-    "human_message",
-    {
-      message: text
-    }
-  );
-
-  return;
+  io.to(sessionId).emit("human_message", { message: text });
+return;
 }
 
   if (allowedUsers.has(chatId) && !userNames[chatId]) {
@@ -257,6 +225,10 @@ bot.on("message", (msg) => {
     bot.sendMessage(chatId, `✅ تم اعتماد الاسم: ${text}\nأهلاً بك في نظام قرية الهدايا 🌸`);
     sendMenu(chatId);
     return;
+  }
+
+  if (allowedUsers.has(chatId)) {
+    return; 
   }
 
   // إذا كتب كلمة السر الصحيحة
@@ -844,54 +816,35 @@ async function sendTelegramMessage(text) {
 // ⭐ REVIEW (ONLY ADD TELEGRAM CALL)
 // =========================
 app.post("/review", async function (req, res) {
-
   try {
-
     const review = {
-      rating:
-        req.body.rating || 0,
-
+      rating: req.body.rating || 0,
       date: new Date().toLocaleString("ar-SA", {
           timeZone: "Asia/Riyadh",
           hour12: true 
         })
      };
-  
+
+    const sessionId = req.body.sessionId || "guest";
+
+    // 1. البحث عن ID الموظف الذي كان يخدم هذا العميل
+    const employeeId = Object.keys(employeeSessions).find(id => employeeSessions[id] === sessionId);
+    
+    // 2. جلب اسم الموظف من القائمة (إذا لم يوجد نضع "غير معروف")
+    const employeeId = Object.keys(employeeSessions).find(id => employeeSessions[id] === sessionId);
+    const employeeName = employeeId ? (userNames[employeeId] || "موظف خدمة العملاء") : "ياسمين (الذكاء الاصطناعي)";
 
     let reviews = [];
-
     try {
-
-      reviews =
-        JSON.parse(
-          fs.readFileSync(
-            "./reviews.json",
-            "utf8"
-          )
-        );
-
+      reviews = JSON.parse(fs.readFileSync("./reviews.json", "utf8"));
     } catch {}
-
-    reviews.push(review);
-
-    fs.writeFileSync(
-
-      "./reviews.json",
-
-      JSON.stringify(
-        reviews,
-        null,
-        2
-      )
-
-    );
+    reviews.push({ ...review, employee: employeeName, sessionId: sessionId });
+    fs.writeFileSync("./reviews.json", JSON.stringify(reviews, null, 2));
 
     // =========================
     // NEW: GET CHAT HISTORY
     // =========================
-    const sessionId = req.body.sessionId || "guest";
     const history = sessions[sessionId]?.history || [];
-
     const chatText = history.map(h => `${h.role}: ${h.content}`).join("\n");
 
     // =========================
@@ -902,6 +855,7 @@ app.post("/review", async function (req, res) {
     await sendTelegramMessage(
       `⭐ تقييم جديد
 ⭐ التقييم: ${review.rating}/5
+👤 الموظف المسؤول: ${employeeName}
 📅 التاريخ: ${review.date}
 
 💬 المحادثة:
