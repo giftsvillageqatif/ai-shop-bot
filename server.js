@@ -142,16 +142,6 @@ sessions[sessionId].handledBy = userNames[chatId] || "موظف خدمة العم
   return;
 }
 
-  if (data === "logout") {
-
-    // أول شيء أرسل الرسالة
-    bot.sendMessage(chatId, "تم تسجيل خروجك 👋");
-  }
-    
-    allowedUsers.delete(chatId);
-    telegramUsers.delete(chatId);
-  delete userNames[chatId];
-
     saveUsers();
     saveAllowedUsers();
   saveUserNames();
@@ -211,57 +201,14 @@ bot.on("message", (msg) => {
     return;
   }
 
-  // تسجيل اسم الموظف
-  if (
-    allowedUsers.has(chatId) &&
-    !userNames[chatId]
-  ) {
-
-    const employeeName = text.trim();
-
-    if (employeeName === "") {
-
-      bot.sendMessage(
-        chatId,
-        "⚠️ يرجى كتابة اسم واضح وصحيح."
-      );
-
-      return;
-    }
-
-    userNames[chatId] = employeeName;
-
-    saveUserNames();
-
-    telegramUsers.add(chatId);
-
-    saveUsers();
-
-    sendMenu(chatId);
-
-    return;
-  }
-
-  // تسجيل دخول الموظف
-  if (text === AUTH_PASSWORD) {
+ if (text === AUTH_PASSWORD) {
 
     allowedUsers.add(chatId);
 
     saveAllowedUsers();
 
-    bot.sendMessage(
-      chatId,
-      "يرجى كتابة اسمك"
-    );
-
     return;
-  }
-
-  // أي رسالة أخرى
-  bot.sendMessage(
-    chatId,
-    "🔐 اكتب كلمة الدخول للمتابعة"
-  );
+  }  
 
 });
 
