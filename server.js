@@ -140,6 +140,7 @@ sessions[sessionId].handledBy = userNames[chatId] || "موظف خدمة العم
   bot.answerCallbackQuery(query.id, { text: "تم استلام العميل وعمل اتصال مباشر وبدء المحادثة" });
     return; // إنهاء الدالة هنا لمنع النزول للأسفل
   }
+});
 
 
 // =========================
