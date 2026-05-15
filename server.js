@@ -224,7 +224,28 @@ return;
   if (allowedUsers.has(chatId) && userNames[chatId]) {
     return; 
   }
+    
+// =========================
+// MENU
+// =========================
 
+function sendMenu(chatId) {
+
+  bot.sendMessage(chatId, `✅ تم اعتماد الاسم: ${text}\nأهلاً بك في نظام قرية الهدايا 🌸`);
+
+    reply_markup: {
+
+      inline_keyboard: [
+
+        [{ text: "🚪 خروج", callback_data: "logout" }]
+
+      ]
+
+    }
+
+  });
+
+}
   // إذا كتب كلمة السر الصحيحة
   if (text === AUTH_PASSWORD) {
     allowedUsers.add(chatId);
@@ -240,30 +261,6 @@ return;
   bot.sendMessage(chatId, "🔐 اكتب كلمة الدخول للمتابعة");
 });
 
-// =========================
-// MENU
-// =========================
-
-function sendMenu(chatId) {
-
-  bot.sendMessage(chatId, `✅ تم اعتماد الاسم: ${text}\nأهلاً بك في نظام قرية الهدايا 🌸`);
-    sendMenu(chatId);
-    return;
-  }
-
-    reply_markup: {
-
-      inline_keyboard: [
-
-        [{ text: "🚪 خروج", callback_data: "logout" }]
-
-      ]
-
-    }
-
-  });
-
-}
 
 // =========================
 // 🔑 OPENAI
