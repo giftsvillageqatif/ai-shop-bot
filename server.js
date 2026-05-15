@@ -168,7 +168,7 @@ bot.on("message", (msg) => {
     delete employeeSessions[chatId];
 
     io.to(sessionId).emit("human_end", {
-      message: "🌸 انتهت المحادثة مع خدمة العملاء",
+      message: "انتهت المحادثة مع خدمة العملاء 🌸",
     });
 
     bot.sendMessage(chatId, "✅ تم إنهاء المحادثة");
@@ -390,7 +390,7 @@ app.post("/end-support", async function (req, res) {
 
       // 3. إرسال تأكيد للعميل عبر Socket ليعرف المتصفح أن الوضع تغير
       io.to(sessionId).emit("human_end", {
-        message: "🌸 تم إنهاء المحادثة، ياسمين معكِ الآن لمساعدتك.",
+        message: "تم إنهاء المحادثة، ياسمين معكِ الآن لمساعدتك. 🌸",
       });
 
       return res.json({ success: true });
@@ -431,7 +431,7 @@ app.post("/chat", async function (req, res) {
         // العميل طلب الخدمة لكن لم يستلمه موظف بعد
         return res.json({
           reply:
-            "👨‍💼 تم تحويلك لخدمة العملاء، انتظر قليلاً حتى يتصل بك أحد موظفينا.",
+            "تم تحويلك لخدمة العملاء👨‍💼، انتظر قليلاً حتى يتصل بك أحد موظفينا.",
           recommend: false,
         });
       }
@@ -481,7 +481,7 @@ ${message}`,
 
       io.to(sessionId).emit("human_mode", { status: true });
       return res.json({
-        reply: "👨‍💼 تم إبلاغ خدمة العملاء، سيتم الرد عليك في أقرب وقت.",
+        reply: "تم إبلاغ خدمة العملاء👨‍💼، سيتم الرد عليك في أقرب وقت.",
         recommend: false,
       });
     }
@@ -599,7 +599,7 @@ ${catalog}
     if (!parsed) {
       return res.json({
         reply:
-          content.replace(/\{.*\}/g, "").trim() || "🌸 ممكن توضّح لي أكثر؟",
+          content.replace(/\{.*\}/g, "").trim() || "ممكن توضّح لي أكثر؟ 🌸",
         recommend: false,
       });
     }
@@ -672,7 +672,7 @@ ${catalog}
     console.log("❌ CHAT ERROR:", err);
 
     return res.json({
-      reply: "🌸 ياسمين لديها خلل تقني مؤقت",
+      reply: "ياسمين لديها خلل تقني مؤقت 🌸",
 
       recommend: false,
     });
