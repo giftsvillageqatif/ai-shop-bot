@@ -211,7 +211,6 @@ bot.on("message", (msg) => {
     return;
   }
   
-  if (
   if (allowedUsers.has(chatId) && userNames[chatId] && employeeSessions[chatId]) {
     const sessionId = employeeSessions[chatId];
     if (!sessions[sessionId]) sessions[sessionId] = { history: [] };
