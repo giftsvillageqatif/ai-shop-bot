@@ -241,11 +241,8 @@ function sendMenu(chatId) {
 
       ]
 
-    }
+    };
 
-  });
-
-}
   // إذا كتب كلمة السر الصحيحة
   if (text === AUTH_PASSWORD) {
     allowedUsers.add(chatId);
