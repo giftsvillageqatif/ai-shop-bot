@@ -875,22 +875,23 @@ app.post("/review", async function (req, res) {
     // =========================
     // NEW: TELEGRAM SEND
     // =========================
-
-    function formatWrapColor(color) {
       
-      if (color === "blue") return "🔵 أزرق";
-      if (color === "pink") return "🩷 وردي";
+      function formatWrapColor(color) {
+      if (color === "blue" || color === "🔵 أزرق") return "🔵 أزرق";
+      if (color === "pink" || color === "🩷 وردي") return "🩷 وردي";
+      return "لا يوجد";
+    }
 
-return "لا يوجد";
-
-}
+    if (chatText.length > 2500) {
+      chatText = chatText.substring(chatText.length - 2500) + "\n\n...(المحادثة طويلة جداً، تم عرض آخر الأسطر)...";
+    }
     
     await sendTelegramMessage(
       `⭐ تقييم جديد
 ⭐ التقييم: ${review.rating}/5
-👤 الموظف المسؤول: ${employeeName}
-🎁 التغليف: ${review.wrap === "yes" ? "نعم" : "لا"}
-🎨 لون التغليف: ${review.wrapColor || "لا يوجد"}
+👤 المسؤول: ${employeeName}
+🎁 التغليف: ${review.wrap === "yes" ? "نعم ✅" : "لا ❌"}
+🎨 لون التغليف: ${formatWrapColor(review.wrapColor)}
 📝 ملاحظات: ${review.note || "لا يوجد"}
 📅 التاريخ: ${review.date}
 
