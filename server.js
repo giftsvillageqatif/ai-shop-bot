@@ -61,6 +61,15 @@ try {
   userNames = {};
 }
 
+// =========================
+// 💬 SESSIONS
+// =========================
+let sessions = {};
+let supportMode = {};
+let clientSockets = {};
+let employeeSessions = {};
+let pendingSupport = {};
+
 // حفظ المستخدمين
 function saveAllowedUsers() {
   fs.writeFileSync(
@@ -83,28 +92,6 @@ function saveUserNames() {
   );
 }
 
-
-// =========================
-// MENU
-// =========================
-
-function sendMenu(chatId) {
-
-  bot.sendMessage(chatId, "أهلاً بك 👋 داخل النظام", {
-
-    reply_markup: {
-
-      inline_keyboard: [
-
-        [{ text: "🚪 خروج", callback_data: "logout" }]
-
-      ]
-
-    }
-
-  });
-
-}
 
 // =========================
 // LOGOUT
@@ -257,6 +244,27 @@ return;
   bot.sendMessage(chatId, "🔐 اكتب كلمة الدخول للمتابعة");
 });
 
+// =========================
+// MENU
+// =========================
+
+function sendMenu(chatId) {
+
+  bot.sendMessage(chatId, "أهلاً بك ${text}\n داخل النظام", {
+
+    reply_markup: {
+
+      inline_keyboard: [
+
+        [{ text: "🚪 خروج", callback_data: "logout" }]
+
+      ]
+
+    }
+
+  });
+
+}
 
 // =========================
 // 🔑 OPENAI
@@ -270,16 +278,6 @@ const openai = new OpenAI({
 // 📦 PRODUCTS
 // =========================
 let products = [];
-
-
-// =========================
-// 💬 SESSIONS
-// =========================
-let sessions = {};
-let supportMode = {};
-let clientSockets = {};
-let employeeSessions = {};
-let pendingSupport = {};
 
 
 // =========================
@@ -822,23 +820,70 @@ async function sendTelegramMessage(text) {
 }
 
 // =========================
-// ⭐ REVIEW (ONLY ADD TELEGRAM CALL)
+// ⭐ REVIEW (STORE & CHAT SEPARATED)
 // =========================
 app.post("/review", async function (req, res) {
   try {
     const sessionId = req.body.sessionId || "guest";
     const rating = req.body.rating || 0;
+    const note = req.body.note || "";
 
+    const dateStr = new Date().toLocaleString("ar-SA", {
+      timeZone: "Asia/Riyadh",
+      hour12: true 
+    });
+
+    // -------------------------------------------------------------
+    // الحالة الأولى: تقييم محادثة خدمة العملاء المباشرة 👨‍💼
+    // -------------------------------------------------------------
+    if (note === "تقييم محادثة مباشرة") {
+      let chatReviews = [];
+      try {
+        chatReviews = JSON.parse(fs.readFileSync("./chat_reviews.json", "utf8"));
+      } catch {}
+
+      // منع التكرار لتقييم المحادثة لنفس الجلسة
+      const hasAlreadyReviewedChat = chatReviews.some(r => r.sessionId === sessionId);
+      if (hasAlreadyReviewedChat) {
+        return res.json({ success: true, alreadyReviewed: true, message: "تم تقييم هذه المحادثة مسبقاً!" });
+      }
+
+      // جلب اسم الموظف من تاريخ الجلسة المحفوظ عند الـ take_ مباشرة لحمايته من الحذف بعد الـ /end
+      const employeeName = sessions[sessionId]?.handledBy || "موظف خدمة العملاء";
+
+      const chatReviewObj = {
+        sessionId: sessionId,
+        employeeName: employeeName,
+        rating: rating,
+        note: note,
+        date: dateStr
+      };
+
+      chatReviews.push(chatReviewObj);
+      fs.writeFileSync("./chat_reviews.json", JSON.stringify(chatReviews, null, 2));
+
+      // إرسال تقرير تقييم الموظف لتليجرام
+      await sendTelegramMessage(
+        `⭐️ *تقييم خدمة عملاء جديد* ⭐️\n\n` +
+        `👤 *الموظف المسؤول:* ${employeeName}\n` +
+        `📊 *التقييم الفعلي:* ${rating} من 5\n` +
+        `📅 *التاريخ:* ${dateStr}\n` +
+        `🆔 *رقم الجلسة:* ${sessionId}`
+      );
+
+      return res.json({ success: true, alreadyReviewed: false });
+    }
+
+    // -------------------------------------------------------------
+    // الحالة الثانية: تقييم المتجر والتغليف عند إكمال الطلب 🎁
+    // -------------------------------------------------------------
     let reviews = [];
     try {
       reviews = JSON.parse(fs.readFileSync("./reviews.json", "utf8"));
     } catch {}
 
-    // التحقق مما إذا كان هذا الـ sessionId قد قام بالتقييم بالفعل في الملف لمنع التكرار فوراً
-    const hasAlreadyReviewed = reviews.some(r => r.sessionId === sessionId);
-    
-    if (hasAlreadyReviewed) {
-      // نرسل نجاح true ولكن مع علم (flag) يخبر الواجهة بأن التقييم تم مسبقاً ليختفي الزر أو الحقل
+    const hasAlreadyReviewedStore = reviews.some(r => r.sessionId === sessionId);
+    if (hasAlreadyReviewedStore) {
       return res.json({
         success: true,
         alreadyReviewed: true,
@@ -849,34 +894,21 @@ app.post("/review", async function (req, res) {
     const review = {
       rating: rating,
       wrap: req.body.wrap || "no",
-  wrapColor: req.body.wrapColor || null,
-  note: req.body.note || "",
-      date: new Date().toLocaleString("ar-SA", {
-        timeZone: "Asia/Riyadh",
-        hour12: true 
-      })
+      wrapColor: req.body.wrapColor || null,
+      note: note,
+      date: dateStr
     };
 
-    // 1. البحث عن ID الموظف الذي كان يخدم هذا العميل
-    const employeeId = Object.keys(employeeSessions).find(id => employeeSessions[id] === sessionId);
-    
-    // 2. جلب اسم الموظف الفعلي من قائمة الأسماء بدلاً من اسم البوت الافتراضي
-    const employeeName = employeeId ? (userNames[employeeId] || "موظف خدمة العملاء") : "ياسمين (الذكاء الاصطناعي)";
+    // جلب اسم الموظف المتابع للجلسة (إن وُجد) أو تقع تلقائياً لياسمين
+    const employeeName = sessions[sessionId]?.handledBy || "ياسمين (الذكاء الاصطناعي)";
 
     reviews.push({ ...review, employee: employeeName, sessionId: sessionId });
     fs.writeFileSync("./reviews.json", JSON.stringify(reviews, null, 2));
 
-    // =========================
-    // NEW: GET CHAT HISTORY
-    // =========================
     const history = sessions[sessionId]?.history || [];
-    const chatText = history.map(h => `${h.role}: ${h.content}`).join("\n");
+    let chatText = history.map(h => `${h.role}: ${h.content}`).join("\n");
 
-    // =========================
-    // NEW: TELEGRAM SEND
-    // =========================
-      
-      function formatWrapColor(color) {
+    function formatWrapColor(color) {
       if (color === "blue" || color === "🔵 أزرق") return "🔵 أزرق";
       if (color === "pink" || color === "🩷 وردي") return "🩷 وردي";
       return "لا يوجد";
@@ -887,16 +919,14 @@ app.post("/review", async function (req, res) {
     }
     
     await sendTelegramMessage(
-      `⭐ تقييم جديد
-⭐ التقييم: ${review.rating}/5
-👤 المسؤول: ${employeeName}
-🎁 التغليف: ${review.wrap === "yes" ? "نعم ✅" : "لا ❌"}
-🎨 لون التغليف: ${formatWrapColor(review.wrapColor)}
-📝 ملاحظات: ${review.note || "لا يوجد"}
-📅 التاريخ: ${review.date}
-
-💬 المحادثة:
-${chatText}`
+      `⭐ تقييم متجر جديد\n` +
+      `⭐ التقييم: ${review.rating}/5\n` +
+      `👤 المسؤول: ${employeeName}\n` +
+      `🎁 التغليف: ${review.wrap === "yes" ? "نعم ✅" : "لا ❌"}\n` +
+      `🎨 لون التغليف: ${formatWrapColor(review.wrapColor)}\n` +
+      `📝 ملاحظات العميل: ${review.note || "لا يوجد"}\n` +
+      `📅 التاريخ: ${review.date}\n\n` +
+      `💬 سجل المحادثة:\n${chatText}`
     );
 
     return res.json({
@@ -906,12 +936,9 @@ ${chatText}`
 
   } catch (err) {
     console.log("❌ REVIEW ERROR:", err);
-    return res.json({
-      success: false
-    });
+    return res.json({ success: false });
   }
 });
-
 
 // =========================
 // 🚀 START
