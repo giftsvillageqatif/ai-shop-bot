@@ -186,78 +186,135 @@ sessions[sessionId].handledBy = userNames[chatId] || "موظف خدمة العم
 // =========================
 
 bot.on("message", (msg) => {
+
   const chatId = msg.chat.id;
   const text = msg.text || "";
 
+  // إنهاء المحادثة
   if (text === "/end" && employeeSessions[chatId]) {
+
     const sessionId = employeeSessions[chatId];
+
     supportMode[sessionId] = false;
+
     delete employeeSessions[chatId];
-    io.to(sessionId).emit("human_end", { message: "🌸 انتهت المحادثة مع خدمة العملاء" });
+
+    io.to(sessionId).emit("human_end", {
+      message: "🌸 انتهت المحادثة مع خدمة العملاء"
+    });
+
     bot.sendMessage(chatId, "✅ تم إنهاء المحادثة");
+
     return;
   }
-  
-  if (allowedUsers.has(chatId) && userNames[chatId] && employeeSessions[chatId]) {
-    const sessionId = employeeSessions[chatId];
-    if (!sessions[sessionId]) sessions[sessionId] = { history: [] };
-    sessions[sessionId].history.push({ role: "assistant", content: `(الموظف): ${text}` });
-    
-  io.to(sessionId).emit("human_message", { message: text });
-return;
-}
 
-  if (allowedUsers.has(chatId) && !userNames[chatId]) {
+  // إرسال الموظف للعميل
+  if (
+    allowedUsers.has(chatId) &&
+    userNames[chatId] &&
+    employeeSessions[chatId]
+  ) {
+
+    const sessionId = employeeSessions[chatId];
+
+    if (!sessions[sessionId]) {
+      sessions[sessionId] = { history: [] };
+    }
+
+    sessions[sessionId].history.push({
+      role: "assistant",
+      content: `(الموظف): ${text}`
+    });
+
+    io.to(sessionId).emit("human_message", {
+      message: text
+    });
+
+    return;
+  }
+
+  // تسجيل اسم الموظف
+  if (
+    allowedUsers.has(chatId) &&
+    !userNames[chatId]
+  ) {
+
     const employeeName = text.trim();
+
     if (employeeName === "") {
-      bot.sendMessage(chatId, "⚠️ يرجى كتابة اسم واضح وصحيح.");
+
+      bot.sendMessage(
+        chatId,
+        "⚠️ يرجى كتابة اسم واضح وصحيح."
+      );
+
       return;
     }
 
-    userNames[chatId] = employeeName; // حفظ الاسم الفعلي للموظف
+    userNames[chatId] = employeeName;
+
     saveUserNames();
 
     telegramUsers.add(chatId);
-    saveUsers();
-    
 
-  if (allowedUsers.has(chatId) && userNames[chatId]) {
-    return; 
+    saveUsers();
+
+    sendMenu(chatId);
+
+    return;
   }
-    
+
+  // تسجيل دخول الموظف
+  if (text === AUTH_PASSWORD) {
+
+    allowedUsers.add(chatId);
+
+    saveAllowedUsers();
+
+    bot.sendMessage(
+      chatId,
+      "يرجى كتابة اسمك"
+    );
+
+    return;
+  }
+
+  // أي رسالة أخرى
+  bot.sendMessage(
+    chatId,
+    "🔐 اكتب كلمة الدخول للمتابعة"
+  );
+
+});
+
+
 // =========================
 // MENU
 // =========================
 
 function sendMenu(chatId) {
 
-  bot.sendMessage(chatId, `✅ تم اعتماد الاسم: ${text}\nأهلاً بك في نظام قرية الهدايا 🌸`);
+  const name =
+    userNames[chatId] || "الموظف";
 
-    reply_markup: {
+  bot.sendMessage(
+    chatId,
+    `✅ تم اعتماد الاسم: ${name}\nأهلاً بك في نظام قرية الهدايا 🌸`,
+    {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "🚪 خروج",
+              callback_data: "logout"
+            }
+          ]
+        ]
+      }
+    }
+  );
 
-      inline_keyboard: [
-
-        [{ text: "🚪 خروج", callback_data: "logout" }]
-
-      ]
-
-    };
-
-  // إذا كتب كلمة السر الصحيحة
-  if (text === AUTH_PASSWORD) {
-    allowedUsers.add(chatId);
-    saveAllowedUsers();
-
-    bot.sendMessage(chatId, "يرجى كتابة اسمك");
-    sendMenu(chatId);
-
-    return;
-  }
-
-  // أي رسالة ثانية
-  bot.sendMessage(chatId, "🔐 اكتب كلمة الدخول للمتابعة");
-});
-
+}
 
 // =========================
 // 🔑 OPENAI
