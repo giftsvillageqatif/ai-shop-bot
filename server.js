@@ -11,7 +11,7 @@ function isWorkTime() {
   const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Riyadh"}));
   const day = now.getDay(); // 0 الأحد، 4 الخميس
   const hour = now.getHours();
-  return (day >= 0 && day <= 5) && (hour >= 10 && hour < 23);
+  return (day >= 0 && day <= 4) && (hour >= 10 && hour < 23);
 }
 
 const app = express();
@@ -36,7 +36,7 @@ const AUTH_PASSWORD = process.env.BOT_PASSWORD;
 // 1. ضع هنا الـ Chat ID الخاص بك وبأي موظف آخر (أرقام بدون فواصل علوية)
 let allowedUsers = new Set([
   769253012,  // 👈 استبدل هذا الرقم بـ Chat ID الخاص بك
-  6777802123   // 👈 استبدل هذا الرقم بـ Chat ID الخاص بالموظف الثاني (إذا وجد)
+  0000000000   // 👈 استبدل هذا الرقم بـ Chat ID الخاص بالموظف الثاني (إذا وجد)
 ]);
 
 // 2. تفعيل الموظفين في التليجرام تلقائياً
@@ -45,7 +45,7 @@ let telegramUsers = new Set(Array.from(allowedUsers));
 // 3. ربط كل رقم بالاسم الثنائي الصريح للموظف
 let userNames = {
   "769253012": "احمد محمد",   // 👈 اكتب رقمك هنا وبجانبه اسمك
-  "6777802123": "تست" // 👈 اكتب رقم الموظف الثاني واسمه
+  "0000000000": "تست" // 👈 اكتب رقم الموظف الثاني واسمه
 };
 
 // =========================
