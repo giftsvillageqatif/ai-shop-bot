@@ -220,10 +220,6 @@ return;
     telegramUsers.add(chatId);
     saveUsers();
     
-    bot.sendMessage(chatId, `✅ تم اعتماد الاسم: ${text}\nأهلاً بك في نظام قرية الهدايا 🌸`);
-    sendMenu(chatId);
-    return;
-  }
 
   if (allowedUsers.has(chatId) && userNames[chatId]) {
     return; 
@@ -250,7 +246,10 @@ return;
 
 function sendMenu(chatId) {
 
-  bot.sendMessage(chatId, "أهلاً بك ${text}\n داخل النظام", {
+  bot.sendMessage(chatId, `✅ تم اعتماد الاسم: ${text}\nأهلاً بك في نظام قرية الهدايا 🌸`);
+    sendMenu(chatId);
+    return;
+  }
 
     reply_markup: {
 
