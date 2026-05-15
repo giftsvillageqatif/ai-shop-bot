@@ -878,6 +878,9 @@ app.post("/review", async function (req, res) {
       `⭐ تقييم جديد
 ⭐ التقييم: ${review.rating}/5
 👤 الموظف المسؤول: ${employeeName}
+🎁 التغليف: ${review.wrap === "yes" ? "نعم" : "لا"}
+🎨 لون التغليف: ${review.wrapColor || "لا يوجد"}
+📝 ملاحظات: ${review.note || "لا يوجد"}
 📅 التاريخ: ${review.date}
 
 💬 المحادثة:
