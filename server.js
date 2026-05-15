@@ -11,7 +11,7 @@ function isWorkTime() {
   const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Riyadh"}));
   const day = now.getDay(); // 0 الأحد، 4 الخميس
   const hour = now.getHours();
-  return (day >= 0 && day <= 4) && (hour >= 10 && hour < 4);
+  return (day >= 0 && day <= 4) && (hour >= 10 && hour < 23);
 }
 
 const app = express();
