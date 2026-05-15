@@ -805,8 +805,8 @@ app.post("/review", async function (req, res) {
     fs.writeFileSync("./reviews.json", JSON.stringify(reviews, null, 2));
 
     function formatWrapColor(color) {
-      if (color === "blue" || color === "🔵 أزرق") return "🔵 أزرق";
-      if (color === "pink" || color === "🩷 وردي") return "🩷 وردي";
+      if (color === "blue" || color === "أزرق 🔵") return "أزرق 🔵";
+      if (color === "pink" || color === "وردي 🩷") return " وردي 🩷";
       return "لا يوجد";
     }
 
