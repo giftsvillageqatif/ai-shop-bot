@@ -831,11 +831,6 @@ app.post("/review", async function (req, res) {
         chatReviews = JSON.parse(fs.readFileSync("./chat_reviews.json", "utf8"));
       } catch {}
 
-      const hasAlreadyReviewedChat = chatReviews.some(r => r.sessionId === sessionId);
-      if (hasAlreadyReviewedChat) {
-        return res.json({ success: true, alreadyReviewed: true, message: "تم تقييم هذه المحادثة مسبقاً!" });
-      }
-
       const employeeName = sessions[sessionId]?.handledBy || "موظف خدمة العملاء";
 
       const chatReviewObj = {
@@ -857,6 +852,10 @@ app.post("/review", async function (req, res) {
         `📅 *التاريخ:* ${dateStr}\n` +
         `💬 *سجل المحادثة:*\n${chatText}`
       );
+
+      if (sessions[sessionId]) {
+        sessions[sessionId].history = [];
+      }
 
       return res.json({ success: true,
     alreadyReviewed: false,
