@@ -120,7 +120,11 @@ bot.on("callback_query", (query) => {
     if (!sessions[sessionId]) sessions[sessionId] = { history: [] };
 sessions[sessionId].handledBy = userNames[chatId] || "موظف خدمة العملاء";
     
-  bot.sendMessage(
+  saveUsers();
+    saveAllowedUsers();
+    saveUserNames();
+    
+    bot.sendMessage(
     chatId,
 
 `✅ تم استلام العميل
@@ -133,21 +137,10 @@ sessions[sessionId].handledBy = userNames[chatId] || "موظف خدمة العم
 /end`
   );
 
-  bot.answerCallbackQuery(
-    query.id
+  bot.answerCallbackQuery(query.id, { text: "تم استلام العميل وعمل اتصال مباشر وبدء المحادثة" });
+    return; // إنهاء الدالة هنا لمنع النزول للأسفل
+  }
 
-    
-  );
-
-  return;
-}
-
-    saveUsers();
-    saveAllowedUsers();
-  saveUserNames();
-
-  bot.answerCallbackQuery(query.id);
-});
 
 // =========================
 // MESSAGE HANDLER
