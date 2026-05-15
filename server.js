@@ -199,7 +199,6 @@ sessions[sessionId].handledBy = userNames[chatId] || "موظف خدمة العم
 // =========================
 
 bot.on("message", (msg) => {
-
   const chatId = msg.chat.id;
   const text = msg.text || "";
 
@@ -213,8 +212,8 @@ bot.on("message", (msg) => {
   }
   
   if (
-  allowedUsers.has(chatId) && employeeSessions[chatId]) {
-  const sessionId = employeeSessions[chatId];
+  if (allowedUsers.has(chatId) && userNames[chatId] && employeeSessions[chatId]) {
+    const sessionId = employeeSessions[chatId];
     if (!sessions[sessionId]) sessions[sessionId] = { history: [] };
     sessions[sessionId].history.push({ role: "assistant", content: `(الموظف): ${text}` });
     
@@ -223,25 +222,33 @@ return;
 }
 
   if (allowedUsers.has(chatId) && !userNames[chatId]) {
-    userNames[chatId] = text; // حفظ النص المرسل كاسم
+    const employeeName = text.trim();
+    if (employeeName === "") {
+      bot.sendMessage(chatId, "⚠️ يرجى كتابة اسم واضح وصحيح.");
+      return;
+    }
+
+    userNames[chatId] = employeeName; // حفظ الاسم الفعلي للموظف
     saveUserNames();
+
+    telegramUsers.add(chatId);
+    saveUsers();
+    
     bot.sendMessage(chatId, `✅ تم اعتماد الاسم: ${text}\nأهلاً بك في نظام قرية الهدايا 🌸`);
     sendMenu(chatId);
     return;
   }
 
-  if (allowedUsers.has(chatId)) {
+  if (allowedUsers.has(chatId) && userNames[chatId]) {
     return; 
   }
 
   // إذا كتب كلمة السر الصحيحة
   if (text === AUTH_PASSWORD) {
     allowedUsers.add(chatId);
-    telegramUsers.add(chatId);
     saveAllowedUsers();
-    saveUsers();
 
-    bot.sendMessage(chatId, "تم تسجيل الدخول بنجاح ✅");
+    bot.sendMessage(chatId, "يرجى كتابة اسمك");
     sendMenu(chatId);
 
     return;
@@ -820,26 +827,40 @@ async function sendTelegramMessage(text) {
 // =========================
 app.post("/review", async function (req, res) {
   try {
-    const review = {
-      rating: req.body.rating || 0,
-      date: new Date().toLocaleString("ar-SA", {
-          timeZone: "Asia/Riyadh",
-          hour12: true 
-        })
-     };
-
     const sessionId = req.body.sessionId || "guest";
-
-    // 1. البحث عن ID الموظف الذي كان يخدم هذا العميل
-    const employeeId = Object.keys(employeeSessions).find(id => employeeSessions[id] === sessionId);
-    
-    // 2. جلب اسم الموظف من القائمة (إذا لم يوجد نضع "غير معروف")
-    const employeeName = employeeId ? (userNames[employeeId] || "موظف خدمة العملاء") : "ياسمين (الذكاء الاصطناعي)";
+    const rating = req.body.rating || 0;
 
     let reviews = [];
     try {
       reviews = JSON.parse(fs.readFileSync("./reviews.json", "utf8"));
     } catch {}
+
+    // التحقق مما إذا كان هذا الـ sessionId قد قام بالتقييم بالفعل في الملف لمنع التكرار فوراً
+    const hasAlreadyReviewed = reviews.some(r => r.sessionId === sessionId);
+    
+    if (hasAlreadyReviewed) {
+      // نرسل نجاح true ولكن مع علم (flag) يخبر الواجهة بأن التقييم تم مسبقاً ليختفي الزر أو الحقل
+      return res.json({
+        success: true,
+        alreadyReviewed: true,
+        message: "تم استقبال تقييمك لهذا الطلب مسبقاً!"
+      });
+    }
+
+    const review = {
+      rating: rating,
+      date: new Date().toLocaleString("ar-SA", {
+        timeZone: "Asia/Riyadh",
+        hour12: true 
+      })
+    };
+
+    // 1. البحث عن ID الموظف الذي كان يخدم هذا العميل
+    const employeeId = Object.keys(employeeSessions).find(id => employeeSessions[id] === sessionId);
+    
+    // 2. جلب اسم الموظف الفعلي من قائمة الأسماء بدلاً من اسم البوت الافتراضي
+    const employeeName = employeeId ? (userNames[employeeId] || "موظف خدمة العملاء") : "ياسمين (الذكاء الاصطناعي)";
+
     reviews.push({ ...review, employee: employeeName, sessionId: sessionId });
     fs.writeFileSync("./reviews.json", JSON.stringify(reviews, null, 2));
 
@@ -864,23 +885,17 @@ app.post("/review", async function (req, res) {
 ${chatText}`
     );
 
-    res.json({
-      success: true
+    return res.json({
+      success: true,
+      alreadyReviewed: false
     });
 
   } catch (err) {
-
-    console.log(
-      "❌ REVIEW ERROR:",
-      err
-    );
-
-    res.json({
+    console.log("❌ REVIEW ERROR:", err);
+    return res.json({
       success: false
     });
-
   }
-
 });
 
 
