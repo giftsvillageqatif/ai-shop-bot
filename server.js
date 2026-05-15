@@ -848,6 +848,9 @@ app.post("/review", async function (req, res) {
 
     const review = {
       rating: rating,
+      wrap: req.body.wrap || "no",
+  wrapColor: req.body.wrapColor || null,
+  note: req.body.note || "",
       date: new Date().toLocaleString("ar-SA", {
         timeZone: "Asia/Riyadh",
         hour12: true 
@@ -872,7 +875,15 @@ app.post("/review", async function (req, res) {
     // =========================
     // NEW: TELEGRAM SEND
     // =========================
-    
+
+    function formatWrapColor(color) {
+      
+      if (color === "blue") return "🔵 أزرق";
+      if (color === "pink") return "🩷 وردي";
+
+return "لا يوجد";
+
+}
     
     await sendTelegramMessage(
       `⭐ تقييم جديد
