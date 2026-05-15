@@ -33,20 +33,17 @@ const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, {
 
 const AUTH_PASSWORD = process.env.BOT_PASSWORD;
 
-// المستخدمين
-let allowedUsers = new Set();
-let telegramUsers = new Set();
-let userNames = {};
-
-
-// تحميل المستخدمين
+// 1. تحميل الموظفين المصرح لهم
+let allowedUsers;
 try {
   const data = fs.readFileSync("./allowed_users.json", "utf8");
   allowedUsers = new Set(JSON.parse(data));
 } catch {
-  allowedUsers = new Set();
+  allowedUsers = new Set(); // إذا لم يكن الملف موجوداً، يبدأ بمجموعة فارغة
 }
 
+// 2. تحميل مستخدمين التليجرام
+let telegramUsers;
 try {
   const data = fs.readFileSync("./telegram_users.json", "utf8");
   telegramUsers = new Set(JSON.parse(data));
@@ -54,6 +51,8 @@ try {
   telegramUsers = new Set();
 }
 
+// 3. تحميل أسماء الموظفين الصريحة
+let userNames;
 try {
   const data = fs.readFileSync("./user_names.json", "utf8");
   userNames = JSON.parse(data);
@@ -72,24 +71,15 @@ let pendingSupport = {};
 
 // حفظ المستخدمين
 function saveAllowedUsers() {
-  fs.writeFileSync(
-    "./allowed_users.json",
-    JSON.stringify([...allowedUsers], null, 2)
-  );
+  fs.writeFileSync("./allowed_users.json", JSON.stringify(Array.from(allowedUsers), null, 2));
 }
 
 function saveUsers() {
-  fs.writeFileSync(
-    "./telegram_users.json",
-    JSON.stringify([...telegramUsers], null, 2)
-  );
+  fs.writeFileSync("./telegram_users.json", JSON.stringify(Array.from(telegramUsers), null, 2));
 }
 
 function saveUserNames() {
-  fs.writeFileSync(
-    "./user_names.json",
-    JSON.stringify(userNames, null, 2)
-  );
+  fs.writeFileSync("./user_names.json", JSON.stringify(userNames, null, 2));
 }
 
 
@@ -870,9 +860,6 @@ async function sendTelegramMessage(text) {
 }
 
 // =========================
-// ⭐ REVIEW (STORE & CHAT SEPARATED)
-// =========================
-// =========================
 // ⭐ REVIEW (STORE & CHAT SEPARATED WITH HISTORY)
 // =========================
 app.post("/review", async function (req, res) {
@@ -936,7 +923,9 @@ app.post("/review", async function (req, res) {
         `💬 *سجل المحادثة:*\n${chatText}`
       );
 
-      return res.json({ success: true, alreadyReviewed: false });
+      return res.json({ success: true,
+    alreadyReviewed: false,
+    supportMode: false });
     }
 
     // -------------------------------------------------------------
