@@ -33,32 +33,20 @@ const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, {
 
 const AUTH_PASSWORD = process.env.BOT_PASSWORD;
 
-// 1. تحميل الموظفين المصرح لهم
-let allowedUsers;
-try {
-  const data = fs.readFileSync("./allowed_users.json", "utf8");
-  allowedUsers = new Set(JSON.parse(data));
-} catch {
-  allowedUsers = new Set(); // إذا لم يكن الملف موجوداً، يبدأ بمجموعة فارغة
-}
+// 1. ضع هنا الـ Chat ID الخاص بك وبأي موظف آخر (أرقام بدون فواصل علوية)
+let allowedUsers = new Set([
+  769253012,  // 👈 استبدل هذا الرقم بـ Chat ID الخاص بك
+  6777802123   // 👈 استبدل هذا الرقم بـ Chat ID الخاص بالموظف الثاني (إذا وجد)
+]);
 
-// 2. تحميل مستخدمين التليجرام
-let telegramUsers;
-try {
-  const data = fs.readFileSync("./telegram_users.json", "utf8");
-  telegramUsers = new Set(JSON.parse(data));
-} catch {
-  telegramUsers = new Set();
-}
+// 2. تفعيل الموظفين في التليجرام تلقائياً
+let telegramUsers = new Set(Array.from(allowedUsers));
 
-// 3. تحميل أسماء الموظفين الصريحة
-let userNames;
-try {
-  const data = fs.readFileSync("./user_names.json", "utf8");
-  userNames = JSON.parse(data);
-} catch {
-  userNames = {};
-}
+// 3. ربط كل رقم بالاسم الثنائي الصريح للموظف
+let userNames = {
+  "769253012": "احمد محمد",   // 👈 اكتب رقمك هنا وبجانبه اسمك
+  "6777802123": "تست" // 👈 اكتب رقم الموظف الثاني واسمه
+};
 
 // =========================
 // 💬 SESSIONS
