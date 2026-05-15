@@ -872,6 +872,9 @@ async function sendTelegramMessage(text) {
 // =========================
 // ⭐ REVIEW (STORE & CHAT SEPARATED)
 // =========================
+// =========================
+// ⭐ REVIEW (STORE & CHAT SEPARATED WITH HISTORY)
+// =========================
 app.post("/review", async function (req, res) {
   try {
     const sessionId = req.body.sessionId || "guest";
@@ -883,6 +886,20 @@ app.post("/review", async function (req, res) {
       hour12: true 
     });
 
+    // ✨ نقل وتجهيز سجل المحادثة هنا في الأعلى ليكون متاحاً للحالتين
+    const history = sessions[sessionId]?.history || [];
+    let chatText = history.map(h => `${h.role}: ${h.content}`).join("\n");
+
+    // تحديد حجم المحادثة لكي لا تتجاوز حدود تليجرام
+    if (chatText.length > 2500) {
+      chatText = chatText.substring(chatText.length - 2500) + "\n\n...(المحادثة طويلة جداً، تم عرض آخر الأسطر)...";
+    }
+    
+    // إذا كان السجل فارغاً تماماً
+    if (!chatText.trim()) {
+      chatText = "لا يوجد سجل محادثة متاح لهذه الجلسة.";
+    }
+
     // -------------------------------------------------------------
     // الحالة الأولى: تقييم محادثة خدمة العملاء المباشرة 👨‍💼
     // -------------------------------------------------------------
@@ -892,13 +909,11 @@ app.post("/review", async function (req, res) {
         chatReviews = JSON.parse(fs.readFileSync("./chat_reviews.json", "utf8"));
       } catch {}
 
-      // منع التكرار لتقييم المحادثة لنفس الجلسة
       const hasAlreadyReviewedChat = chatReviews.some(r => r.sessionId === sessionId);
       if (hasAlreadyReviewedChat) {
         return res.json({ success: true, alreadyReviewed: true, message: "تم تقييم هذه المحادثة مسبقاً!" });
       }
 
-      // جلب اسم الموظف من تاريخ الجلسة المحفوظ عند الـ take_ مباشرة لحمايته من الحذف بعد الـ /end
       const employeeName = sessions[sessionId]?.handledBy || "موظف خدمة العملاء";
 
       const chatReviewObj = {
@@ -912,13 +927,13 @@ app.post("/review", async function (req, res) {
       chatReviews.push(chatReviewObj);
       fs.writeFileSync("./chat_reviews.json", JSON.stringify(chatReviews, null, 2));
 
-      // إرسال تقرير تقييم الموظف لتليجرام
+      // إرسال تقرير تقييم الموظف لتليجرام مع السجل الآن بنجاح ✅
       await sendTelegramMessage(
         `⭐️ *تقييم خدمة عملاء جديد* ⭐️\n\n` +
         `👤 *الموظف المسؤول:* ${employeeName}\n` +
         `📊 *التقييم الفعلي:* ${rating} من 5\n` +
         `📅 *التاريخ:* ${dateStr}\n` +
-        `🆔 *رقم الجلسة:* ${sessionId}`
+        `💬 *سجل المحادثة:*\n${chatText}`
       );
 
       return res.json({ success: true, alreadyReviewed: false });
@@ -949,23 +964,15 @@ app.post("/review", async function (req, res) {
       date: dateStr
     };
 
-    // جلب اسم الموظف المتابع للجلسة (إن وُجد) أو تقع تلقائياً لياسمين
     const employeeName = sessions[sessionId]?.handledBy || "ياسمين (الذكاء الاصطناعي)";
 
     reviews.push({ ...review, employee: employeeName, sessionId: sessionId });
     fs.writeFileSync("./reviews.json", JSON.stringify(reviews, null, 2));
 
-    const history = sessions[sessionId]?.history || [];
-    let chatText = history.map(h => `${h.role}: ${h.content}`).join("\n");
-
     function formatWrapColor(color) {
       if (color === "blue" || color === "🔵 أزرق") return "🔵 أزرق";
       if (color === "pink" || color === "🩷 وردي") return "🩷 وردي";
       return "لا يوجد";
-    }
-
-    if (chatText.length > 2500) {
-      chatText = chatText.substring(chatText.length - 2500) + "\n\n...(المحادثة طويلة جداً، تم عرض آخر الأسطر)...";
     }
     
     await sendTelegramMessage(
