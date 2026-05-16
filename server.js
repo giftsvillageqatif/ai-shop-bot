@@ -728,7 +728,20 @@ app.post("/review", async function (req, res) {
 
     // ✨ نقل وتجهيز سجل المحادثة هنا في الأعلى ليكون متاحاً للحالتين
     const history = sessions[sessionId]?.history || [];
-    let chatText = history.map((h) => `${h.role}: ${h.content}`).join("\n");
+    let chatText = history.map((h) => {
+  if (h.role === "user") return `👤 العميل: ${h.content}`;
+  if (h.role === "assistant") {
+    const parsed = safeJson(h.content);
+    if (parsed && parsed.reply) return `🌸 ياسمين: ${parsed.reply}`;
+    if (h.content.startsWith("(الموظف):")) {
+      const employeeName = sessions[sessionId]?.handledBy || "الموظف";
+      const msgText = h.content.replace("(الموظف):", "").trim();
+      return `👨‍💼 ${employeeName}: ${msgText}`;
+    }
+    return `🌸 ياسمين: ${h.content}`;
+  }
+  return "";
+}).join("\n");
 
     // تحديد حجم المحادثة لكي لا تتجاوز حدود تليجرام
     if (chatText.length > 2500) {
