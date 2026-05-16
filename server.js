@@ -49,7 +49,16 @@ const chatLimiter = rateLimit({
 app.use("/chat", chatLimiter);
 
 const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, {
-  polling: true,
+  polling: {
+    autoStart: true,
+    params: {
+      timeout: 10,
+    },
+  },
+});
+
+bot.on("polling_error", (err) => {
+  console.log("⚠️ POLLING ERROR:", err.message);
 });
 
 // 1. ضع هنا الـ Chat ID الخاص بك وبأي موظف آخر (أرقام بدون فواصل علوية)
