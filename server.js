@@ -561,11 +561,13 @@ const lowerMsg = message.toLowerCase();
 let categoryTag = null;
 if (lowerMsg.includes("ولد") || lowerMsg.includes("اولاد") || lowerMsg.includes("أولاد")) categoryTag = "ولد";
 else if (lowerMsg.includes("بنت") || lowerMsg.includes("بنات")) categoryTag = "بنات";
+else if (lowerMsg.includes("مولود") || lowerMsg.includes("مواليد") || lowerMsg.includes("اطفال") || lowerMsg.includes("أطفال")) categoryTag = "عام";
 
 if (categoryTag) {
   const filtered = matchedProducts.filter((p) => p.tags.includes(categoryTag));
   if (filtered.length > 0) matchedProducts = filtered;
 }
+    }
 
     // إذا كان البحث فارغاً لأي سبب، نأخذ أول 3 منتجات كاحتياط
     if (matchedProducts.length === 0) {
