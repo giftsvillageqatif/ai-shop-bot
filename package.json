@@ -7,8 +7,9 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "@langchain/core": "^1.1.46",
-    "@langchain/openai": "^1.4.5",
+    "@langchain/core": "^0.3.0",
+    "@langchain/openai": "^0.3.0",
+    "langchain": "^0.3.0",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "express-rate-limit": "^8.5.2",
