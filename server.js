@@ -404,6 +404,14 @@ app.get("/", function (req, res) {
 });
 
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
+app.get("/stats", function (req, res) {
+  const pass = req.query.pass;
+  if (pass !== DASHBOARD_PASSWORD) {
+    return res.status(401).json({ error: "غير مصرح" });
+  }
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.json(stats);
+});
 app.get("/dashboard", function (req, res) {
   const pass = req.query.pass;
   if (pass !== DASHBOARD_PASSWORD) {
@@ -416,39 +424,76 @@ app.get("/dashboard", function (req, res) {
         </form>
       </body></html>
     `);
-  }
+  } 
+      res.send(`<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>لوحة تحكم ياسمين</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#fafafa;direction:rtl;padding:30px;color:#222}
+.header{display:flex;align-items:center;gap:12px;margin-bottom:2rem}
+.avatar{width:42px;height:42px;border-radius:50%;background:#FBEAF0;display:flex;align-items:center;justify-content:center;font-size:20px}
+.title{font-size:18px;font-weight:500}
+.subtitle{font-size:12px;color:#888;margin-top:2px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:1.5rem}
+.stat{background:#fff;border:0.5px solid #eee;border-radius:12px;padding:1rem;text-align:center}
+.stat i{font-size:22px;color:#D4537E}
+.stat-val{font-size:28px;font-weight:500;color:#D4537E;margin:6px 0}
+.stat-label{font-size:12px;color:#888}
+.card{background:#fff;border:0.5px solid #eee;border-radius:14px;padding:1.25rem;margin-bottom:1rem}
+.card-title{font-size:14px;font-weight:500;margin-bottom:1rem;display:flex;align-items:center;gap:6px;color:#222}
+.row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:0.5px solid #f0f0f0;font-size:14px}
+.row:last-child{border-bottom:none}
+.badge{background:#FBEAF0;color:#993556;font-size:12px;padding:3px 12px;border-radius:20px;font-weight:500}
+.refresh{display:inline-flex;align-items:center;gap:6px;margin-top:1rem;padding:7px 18px;border:0.5px solid #eee;border-radius:10px;background:#fff;cursor:pointer;font-size:13px;color:#D4537E;text-decoration:none}
+.refresh:hover{background:#FBEAF0}
+</style>
+</head>
+<body>
 
-  const days = Object.entries(stats.dailyMessages)
-    .slice(-7)
-    .map(([d, c]) => `<tr><td>${d}</td><td>${c}</td></tr>`)
-    .join("");
+<div class="header">
+  <div class="avatar">🌸</div>
+  <div>
+    <div class="title">لوحة تحكم ياسمين</div>
+    <div class="subtitle">إحصائيات المتجر</div>
+  </div>
+</div>
 
-  res.send(`
-    <html><body dir="rtl" style="font-family:Arial;padding:30px;background:#fafafa;">
-      <h2 style="color:#ff4da6;">🌸 لوحة تحكم ياسمين</h2>
-      <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:30px;">
-        <div style="background:#fff;padding:20px;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,0.08);min-width:150px;">
-          <div style="font-size:32px;font-weight:bold;color:#ff4da6;">${stats.totalSessions}</div>
-          <div>إجمالي الجلسات</div>
-        </div>
-        <div style="background:#fff;padding:20px;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,0.08);min-width:150px;">
-          <div style="font-size:32px;font-weight:bold;color:#ff4da6;">${stats.totalMessages}</div>
-          <div>إجمالي الرسائل</div>
-        </div>
-        <div style="background:#fff;padding:20px;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,0.08);min-width:150px;">
-          <div style="font-size:32px;font-weight:bold;color:#ff4da6;">${stats.transferredToSupport}</div>
-          <div>تحويل لخدمة العملاء</div>
-        </div>
-      </div>
-      <h3>رسائل آخر 7 أيام</h3>
-      <table style="background:#fff;border-radius:14px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08);width:100%;max-width:400px;">
-        <tr style="font-weight:bold;"><td>التاريخ</td><td>عدد الرسائل</td></tr>
-        ${days}
-      </table>
-      <br>
-      <a href="/dashboard?pass=${DASHBOARD_PASSWORD}" style="color:#ff4da6;">🔄 تحديث</a>
-    </body></html>
-  `);
+<div class="grid">
+  <div class="stat">
+    <i class="ti ti-users"></i>
+    <div class="stat-val">${stats.totalSessions}</div>
+    <div class="stat-label">إجمالي الجلسات</div>
+  </div>
+  <div class="stat">
+    <i class="ti ti-message"></i>
+    <div class="stat-val">${stats.totalMessages}</div>
+    <div class="stat-label">إجمالي الرسائل</div>
+  </div>
+  <div class="stat">
+    <i class="ti ti-headset"></i>
+    <div class="stat-val">${stats.transferredToSupport}</div>
+    <div class="stat-label">تحويل لخدمة العملاء</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title"><i class="ti ti-calendar-stats"></i> آخر 7 أيام</div>
+  ${Object.entries(stats.dailyMessages).slice(-7).reverse().map(([d,c]) =>
+    `<div class="row"><span style="color:#888">${d}</span><span class="badge">${c} رسالة</span></div>`
+  ).join("") || '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد بيانات بعد</div>'}
+</div>
+
+<a class="refresh" href="/dashboard?pass=${DASHBOARD_PASSWORD}">
+  <i class="ti ti-refresh"></i> تحديث
+</a>
+
+</body>
+</html>`);
 });
 
 // =========================
