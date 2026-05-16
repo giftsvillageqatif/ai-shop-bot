@@ -31,6 +31,7 @@ function isWorkTime() {
 const ALLOWED_ORIGIN = "https://gifts-village.sa";
 const app = express();
 const server = http.createServer(app);
+app.set('trust proxy', 1);
 
 app.use(session({
   secret: process.env.DASHBOARD_PASSWORD,
@@ -528,8 +529,17 @@ button:hover{background:#c0476d}
   <div class="title">لوحة تحكم ياسمين</div>
   <div class="sub">أدخل الرقم السري للمتابعة</div>
   <form method="POST" action="/gifts-village-dashboard-login">
-    <input name="pass" type="password" placeholder="الرقم السري" />
-    <button type="submit">دخول</button>
+    <div style="position:relative;margin-bottom:12px;">
+  <input id="passInput" name="pass" type="password" placeholder="الرقم السري" style="width:100%;padding:12px 44px 12px 16px;border-radius:12px;border:1px solid #f5c0d0;font-size:14px;outline:none;text-align:right;color:#222;background:#FFF8FB;" />
+  <span onclick="togglePass()" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none;">👁</span>
+</div>
+<button type="submit">دخول</button>
+<script>
+function togglePass() {
+  const input = document.getElementById('passInput');
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+</script>
   </form>
 </div>
 </body>
