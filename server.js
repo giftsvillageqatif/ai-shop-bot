@@ -589,6 +589,30 @@ body{font-family:Arial,sans-serif;background:#FFF0F5;direction:rtl;padding:30px;
     <div class="stat-val">${stats.transferredToSupport}</div>
     <div class="stat-label">تحويل لخدمة العملاء</div>
   </div>
+  <div class="stat">
+    <i class="ti ti-star"></i>
+    <div class="stat-val">${(function() {
+      try {
+        const reviews = JSON.parse(fs.readFileSync('./reviews.json', 'utf8'));
+        if (reviews.length === 0) return '—';
+        const avg = reviews.reduce((sum, r) => sum + Number(r.rating), 0) / reviews.length;
+        return avg.toFixed(1) + ' ⭐';
+      } catch { return '—'; }
+    })()}</div>
+    <div class="stat-label">متوسط تقييم المتجر</div>
+  </div>
+  <div class="stat">
+    <i class="ti ti-star-half"></i>
+    <div class="stat-val">${(function() {
+      try {
+        const chatReviews = JSON.parse(fs.readFileSync('./chat_reviews.json', 'utf8'));
+        if (chatReviews.length === 0) return '—';
+        const avg = chatReviews.reduce((sum, r) => sum + Number(r.rating), 0) / chatReviews.length;
+        return avg.toFixed(1) + ' ⭐';
+      } catch { return '—'; }
+    })()}</div>
+    <div class="stat-label">متوسط تقييم خدمة العملاء</div>
+  </div>
 </div>
 
 <div class="card">
