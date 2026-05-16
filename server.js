@@ -626,7 +626,7 @@ body{font-family:Arial,sans-serif;background:#FFF0F5;direction:rtl;padding:30px;
             var parsed = JSON.parse(h.content.replace(/\`\`\`json|\`\`\`/g,'').trim());
             return parsed.reply || '';
           } catch(e) {
-            return h.content.replace(/\{[\s\S]*?\}/g,'').trim();
+            return h.content.replace(/\{[\s\S]*?\}/g,'').replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" style="display:inline-block;margin-top:6px;padding:6px 14px;background:#D4537E;color:#fff;border-radius:20px;font-size:12px;text-decoration:none;">$1</a>').trim();
           }
         })() +
         '</div>'
