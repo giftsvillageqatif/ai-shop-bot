@@ -631,7 +631,7 @@ ${p.price}
 {
  "reply":"ردك",
  "recommend":true,
- "product_query":"وصف العميل"
+ "product_query":"وصف العميل",
  "category_link":{"label":"اسم الزر","url":"رابط القسم"}
 }
 
