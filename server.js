@@ -281,6 +281,20 @@ const openai = new OpenAI({
 // 📦 PRODUCTS
 // =========================
 let products = [];
+let stats = {
+  totalSessions: 0,
+  totalMessages: 0,
+  transferredToSupport: 0,
+  dailyMessages: {}
+};
+
+try {
+  stats = JSON.parse(fs.readFileSync("./stats.json", "utf8"));
+} catch {}
+
+function saveStats() {
+  fs.writeFileSync("./stats.json", JSON.stringify(stats, null, 2));
+}
 
 // =========================
 // 🏪 STORE INFO
@@ -387,6 +401,54 @@ function safeJson(text) {
 // =========================
 app.get("/", function (req, res) {
   res.send("🌸 Yasmin AI Running");
+});
+
+const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
+app.get("/dashboard", function (req, res) {
+  const pass = req.query.pass;
+  if (pass !== DASHBOARD_PASSWORD) {
+    return res.send(`
+      <html><body style="font-family:Arial;text-align:center;padding:50px;">
+        <h2>🔐 لوحة تحكم ياسمين</h2>
+        <form method="GET">
+          <input name="pass" type="password" placeholder="الرقم السري" style="padding:10px;border-radius:10px;border:1px solid #eee;margin:10px;">
+          <button type="submit" style="padding:10px 20px;background:#ff4da6;color:#fff;border:none;border-radius:10px;cursor:pointer;">دخول</button>
+        </form>
+      </body></html>
+    `);
+  }
+
+  const days = Object.entries(stats.dailyMessages)
+    .slice(-7)
+    .map(([d, c]) => `<tr><td>${d}</td><td>${c}</td></tr>`)
+    .join("");
+
+  res.send(`
+    <html><body dir="rtl" style="font-family:Arial;padding:30px;background:#fafafa;">
+      <h2 style="color:#ff4da6;">🌸 لوحة تحكم ياسمين</h2>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:30px;">
+        <div style="background:#fff;padding:20px;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,0.08);min-width:150px;">
+          <div style="font-size:32px;font-weight:bold;color:#ff4da6;">${stats.totalSessions}</div>
+          <div>إجمالي الجلسات</div>
+        </div>
+        <div style="background:#fff;padding:20px;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,0.08);min-width:150px;">
+          <div style="font-size:32px;font-weight:bold;color:#ff4da6;">${stats.totalMessages}</div>
+          <div>إجمالي الرسائل</div>
+        </div>
+        <div style="background:#fff;padding:20px;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,0.08);min-width:150px;">
+          <div style="font-size:32px;font-weight:bold;color:#ff4da6;">${stats.transferredToSupport}</div>
+          <div>تحويل لخدمة العملاء</div>
+        </div>
+      </div>
+      <h3>رسائل آخر 7 أيام</h3>
+      <table style="background:#fff;border-radius:14px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08);width:100%;max-width:400px;">
+        <tr style="font-weight:bold;"><td>التاريخ</td><td>عدد الرسائل</td></tr>
+        ${days}
+      </table>
+      <br>
+      <a href="/dashboard?pass=${DASHBOARD_PASSWORD}" style="color:#ff4da6;">🔄 تحديث</a>
+    </body></html>
+  `);
 });
 
 // =========================
@@ -507,6 +569,8 @@ app.post("/chat", async function (req, res) {
 
       supportMode[sessionId] = true;
       pendingSupport[sessionId] = true;
+      stats.transferredToSupport++;
+saveStats();
 
       telegramUsers.forEach((id) => {
         bot.sendMessage(
@@ -546,6 +610,15 @@ ${sanitize(message)}`,
     const session = sessions[sessionId];
     session.history.push({ role: "user", content: message });
     session.lastActive = Date.now();
+    const today = new Date().toLocaleDateString("ar-SA", { timeZone: "Asia/Riyadh" });
+if (!stats.dailyMessages[today]) stats.dailyMessages[today] = 0;
+stats.dailyMessages[today]++;
+stats.totalMessages++;
+if (!session.counted) {
+  stats.totalSessions++;
+  session.counted = true;
+}
+saveStats();
 
     let matchedProducts = [];
 
