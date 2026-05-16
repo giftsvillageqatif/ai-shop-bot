@@ -12,14 +12,7 @@ import { Document } from "@langchain/core/documents";
 import rateLimit from "express-rate-limit";
 import session from "express-session";
 
-app.use(
-  session({
-    secret: process.env.DASHBOARD_PASSWORD,
-    resave: false,
-    saveUninitialized: false,
-    cookie: { maxAge: 60 * 60 * 1000 }, // ساعة وحدة
-  }),
-);
+const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
 
 let vectorStore = null;
 const embeddings = new OpenAIEmbeddings({
@@ -38,6 +31,13 @@ function isWorkTime() {
 const ALLOWED_ORIGIN = "https://gifts-village.sa";
 const app = express();
 const server = http.createServer(app);
+
+app.use(session({
+  secret: process.env.DASHBOARD_PASSWORD,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 60 * 60 * 1000 }
+}));
 
 const io = new Server(server, {
   cors: {
@@ -478,7 +478,6 @@ app.post("/reload-products", async function (req, res) {
   res.json({ success: true, total: products.length });
 });
 
-const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
 app.get("/stats", function (req, res) {
   const pass = req.query.pass;
   if (pass !== DASHBOARD_PASSWORD) {
