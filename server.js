@@ -611,6 +611,12 @@ ${p.price}
 - إذا واجه العميل مشكلة فنية أو شكوى لا تستطيعين حلها: قولي "عذراً لا أستطيع حل هذه المشكلة، هل ترغب في التواصل مع خدمة العملاء؟ اكتب (حولني) للتحويل".
 - لا تقومي بالتحويل تلقائياً، انتظري كلمة "حولني" من العميل.
 - إذا وافق العميل، اطلبي منه كتابة "حولني" بوضوح.
+- إذا طلب العميل رؤية المزيد من منتجات قسم معين، أضيفي في الـ JSON حقل "category_link" يحتوي label وurl. الأقسام:
+  المواليد: https://gifts-village.sa/categories/1522449/قسم-المواليد
+  أولاد: https://gifts-village.sa/categories/1522452/قسم-الاولاد
+  بنات: https://gifts-village.sa/categories/1522453/قسم-البنات
+  سيارات: https://gifts-village.sa/categories/1531910/مركبات-كهربائية
+- category_link اختياري، أضيفيه فقط إذا طلب العميل مزيداً من قسم بعينه.
 
 إذا احتجتِ ترشيح منتجات:
 
@@ -620,6 +626,7 @@ ${p.price}
  "reply":"ردك",
  "recommend":true,
  "product_query":"وصف العميل"
+ "category_link":{"label":"اسم الزر","url":"رابط القسم"}
 }
 
 إذا تحتاجين سؤال العميل:
@@ -674,6 +681,7 @@ ${catalog}
         recommend: true,
 
         products: selected,
+        category_link: parsed.category_link || null,
       });
     }
 
