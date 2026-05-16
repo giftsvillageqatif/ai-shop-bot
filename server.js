@@ -285,7 +285,8 @@ let stats = {
   totalSessions: 0,
   totalMessages: 0,
   transferredToSupport: 0,
-  dailyMessages: {}
+  dailyMessages: {},
+  productRequests: {}
 };
 
 try {
@@ -412,7 +413,7 @@ app.get("/stats", function (req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.json(stats);
 });
-app.get("/dashboard", function (req, res) {
+app.get("/gifts-village-dashboard", function (req, res) {
   const pass = req.query.pass;
   if (pass !== DASHBOARD_PASSWORD) {
     return res.send(`
@@ -488,7 +489,17 @@ body{font-family:Arial,sans-serif;background:#fafafa;direction:rtl;padding:30px;
   ).join("") || '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد بيانات بعد</div>'}
 </div>
 
-<a class="refresh" href="/dashboard?pass=${DASHBOARD_PASSWORD}">
+<div class="card">
+  <div class="card-title"><i class="ti ti-shopping-bag"></i> أكثر المنتجات طلباً</div>
+  ${Object.entries(stats.productRequests)
+    .sort((a,b) => b[1]-a[1])
+    .slice(0,10)
+    .map(([name,count]) =>
+      `<div class="row"><span>${name}</span><span class="badge">${count} طلب</span></div>`
+    ).join("") || '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد بيانات بعد</div>'}
+</div>
+
+<a class="refresh" style="margin:1rem auto;display:flex;width:fit-content;" href="/gifts-village-dashboard?pass=${DASHBOARD_PASSWORD}">
   <i class="ti ti-refresh"></i> تحديث
 </a>
 
@@ -800,6 +811,12 @@ ${catalog}
     // =========================
     if (parsed.recommend) {
       const selected = matchedProducts;
+
+      selected.forEach(function(p) {
+  if (!stats.productRequests[p.title]) stats.productRequests[p.title] = 0;
+  stats.productRequests[p.title]++;
+});
+saveStats();
 
       return res.json({
         reply: parsed.reply,
