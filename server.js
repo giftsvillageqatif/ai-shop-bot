@@ -10,6 +10,16 @@ import { OpenAIEmbeddings } from "@langchain/openai";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { Document } from "@langchain/core/documents";
 import rateLimit from "express-rate-limit";
+import session from "express-session";
+
+app.use(
+  session({
+    secret: process.env.DASHBOARD_PASSWORD,
+    resave: false,
+    saveUninitialized: false,
+    cookie: { maxAge: 60 * 60 * 1000 }, // ساعة وحدة
+  }),
+);
 
 let vectorStore = null;
 const embeddings = new OpenAIEmbeddings({
@@ -79,11 +89,58 @@ let userNames = {
 // =========================
 // 💬 SESSIONS
 // =========================
-let sessions = {};
-let supportMode = {};
 let clientSockets = {};
-let employeeSessions = {};
-let pendingSupport = {};
+
+// تحميل البيانات عند التشغيل
+function loadState() {
+  try {
+    const data = JSON.parse(fs.readFileSync("./state.json", "utf8"));
+    return {
+      sessions: data.sessions || {},
+      supportMode: data.supportMode || {},
+      employeeSessions: data.employeeSessions || {},
+      pendingSupport: data.pendingSupport || {},
+    };
+  } catch {
+    return {
+      sessions: {},
+      supportMode: {},
+      employeeSessions: {},
+      pendingSupport: {},
+    };
+  }
+}
+
+let { sessions, supportMode, employeeSessions, pendingSupport } = loadState();
+
+// حفظ الحالة بشكل دوري كل دقيقتين
+function saveState() {
+  fs.writeFileSync(
+    "./state.json",
+    JSON.stringify(
+      {
+        sessions,
+        supportMode,
+        employeeSessions,
+        pendingSupport,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+setInterval(saveState, 2 * 60 * 1000);
+
+// حفظ عند إغلاق السيرفر
+process.on("SIGINT", () => {
+  saveState();
+  process.exit();
+});
+process.on("SIGTERM", () => {
+  saveState();
+  process.exit();
+});
 
 setInterval(
   () => {
@@ -246,31 +303,6 @@ bot.on("message", (msg) => {
 });
 
 // =========================
-// MENU
-// =========================
-
-function sendMenu(chatId) {
-  const name = userNames[chatId] || "الموظف";
-
-  bot.sendMessage(
-    chatId,
-    `✅ تم اعتماد الاسم: ${name}\nأهلاً بك في نظام قرية الهدايا 🌸`,
-    {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            {
-              text: "🚪 خروج",
-              callback_data: "logout",
-            },
-          ],
-        ],
-      },
-    },
-  );
-}
-
-// =========================
 // 🔑 OPENAI
 // =========================
 const openai = new OpenAI({
@@ -286,7 +318,7 @@ let stats = {
   totalMessages: 0,
   transferredToSupport: 0,
   dailyMessages: {},
-  productRequests: {}
+  productRequests: {},
 };
 
 try {
@@ -321,7 +353,10 @@ function saveConversation(sessionId) {
 
   if (conversations.length > 200) conversations = conversations.slice(-200);
 
-  fs.writeFileSync("./conversations.json", JSON.stringify(conversations, null, 2));
+  fs.writeFileSync(
+    "./conversations.json",
+    JSON.stringify(conversations, null, 2),
+  );
 }
 
 // =========================
@@ -373,14 +408,14 @@ async function loadProducts() {
         .trim();
 
       return {
-  id: i,
-  title: p.name || "",
-  description: p.description || "",
-  price: p.price || "",
-  image: image,
-  url: p.url || "",
-  tags: String(p.tags || ""),
-};
+        id: i,
+        title: p.name || "",
+        description: p.description || "",
+        price: p.price || "",
+        image: image,
+        url: p.url || "",
+        tags: String(p.tags || ""),
+      };
     });
 
     console.log("✅ PRODUCTS:", products.length);
@@ -428,11 +463,19 @@ function safeJson(text) {
 // ❤️ ROOT
 // =========================
 app.get("/beep.wav", function (req, res) {
-  res.sendFile(new URL('./beep.wav', import.meta.url).pathname);
+  res.sendFile(new URL("./beep.wav", import.meta.url).pathname);
 });
 
 app.get("/", function (req, res) {
   res.send("🌸 Yasmin AI Running");
+});
+
+app.post("/reload-products", async function (req, res) {
+  if (req.query.pass !== DASHBOARD_PASSWORD) {
+    return res.status(401).json({ error: "غير مصرح" });
+  }
+  await loadProducts();
+  res.json({ success: true, total: products.length });
 });
 
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
@@ -444,15 +487,23 @@ app.get("/stats", function (req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.json(stats);
 });
-app.get("/gifts-village-dashboard", function (req, res) {
-  const pass = req.query.pass;
+app.post("/gifts-village-dashboard-login", function (req, res) {
+  const pass = req.body.pass;
   if (pass !== DASHBOARD_PASSWORD) {
+    return res.redirect("/gifts-village-dashboard");
+  }
+  req.session.authed = true;
+  res.redirect("/gifts-village-dashboard");
+});
+
+app.get("/gifts-village-dashboard", function (req, res) {
+  if (!req.session.authed) {
     return res.send(`<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>لوحة تحكم ياسمين الخاص بقرية الهدايا</title>
+<title>لوحة تحكم ياسمين</title>
 <link rel="icon" href="https://media.zid.store/f9acd5af-b553-4b35-a418-e791211b7c21/620a4cd4-19e3-4fcb-8e28-5bd3e472eed2.png">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -470,17 +521,19 @@ button:hover{background:#c0476d}
 <body>
 <div class="box">
   <div class="logo">🌸</div>
-  <div class="title">لوحة تحكم ياسمين الخاص بقرية الهدايا</div>
+  <div class="title">لوحة تحكم ياسمين</div>
   <div class="sub">أدخل الرقم السري للمتابعة</div>
-  <form method="GET">
+  <form method="POST" action="/gifts-village-dashboard-login">
     <input name="pass" type="password" placeholder="الرقم السري" />
     <button type="submit">دخول</button>
   </form>
 </div>
 </body>
 </html>`);
-  } 
-      res.send(`<!DOCTYPE html>
+  }
+
+  // نفس صفحة الداشبورد الحالية بدون ?pass في الـ URL
+  res.send(`<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
 <meta charset="UTF-8">
@@ -539,60 +592,132 @@ body{font-family:Arial,sans-serif;background:#FFF0F5;direction:rtl;padding:30px;
 
 <div class="card">
   <div class="card-title"><i class="ti ti-calendar-stats"></i> آخر 7 أيام</div>
-  ${Object.entries(stats.dailyMessages).slice(-7).reverse().map(([d,c]) =>
-    `<div class="row"><span style="color:#888">${d}</span><span class="badge">${c} رسالة</span></div>`
-  ).join("") || '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد بيانات بعد</div>'}
+  ${
+    Object.entries(stats.dailyMessages)
+      .slice(-7)
+      .reverse()
+      .map(
+        ([d, c]) =>
+          `<div class="row"><span style="color:#888">${d}</span><span class="badge">${c} رسالة</span></div>`,
+      )
+      .join("") ||
+    '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد بيانات بعد</div>'
+  }
 </div>
 
 <div class="card">
   <div class="card-title"><i class="ti ti-shopping-bag"></i> أكثر المنتجات طلباً</div>
-  ${Object.entries(stats.productRequests)
-    .sort((a,b) => b[1]-a[1])
-    .slice(0,10)
-    .map(([name,count]) =>
-      `<div class="row"><span>${name}</span><span class="badge">${count} طلب</span></div>`
-    ).join("") || '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد بيانات بعد</div>'}
+  ${
+    Object.entries(stats.productRequests)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(
+        ([name, count]) =>
+          `<div class="row"><span>${name}</span><span class="badge">${count} طلب</span></div>`,
+      )
+      .join("") ||
+    '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد بيانات بعد</div>'
+  }
 </div>
+
 <div class="card">
   <div class="card-title"><i class="ti ti-messages"></i> آخر المحادثات</div>
-  ${(function() {
+  ${(function () {
     let convs = [];
-    try { convs = JSON.parse(fs.readFileSync("./conversations.json", "utf8")); } catch {}
-    if (convs.length === 0) return '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد محادثات بعد</div>';
-    return convs.slice(-20).reverse().map((c) => {
-      const msgs = c.history.map((h) =>
-        '<div style="margin:4px 0;padding:6px 10px;border-radius:10px;background:' +
-        (h.role === 'user' ? '#fff0f5' : '#f5f5f5') +
-        ';font-size:12px;color:#444;">' +
-        '<span style="color:' + (h.role === 'user' ? '#D4537E' : '#888') + ';font-weight:500;">' +
-        (h.role === 'user' ? 'العميل: ' : 'ياسمين: ') +
-        '</span>' + (function() {
-  try {
-    var parsed = JSON.parse(h.content.replace(/```json|```/g,'').trim());
-    return parsed.reply || '';
-  } catch(e) {
-    return h.content.replace(/\{[\s\S]*?\}/g,'').trim();
-  }
-})() +
-        '</div>'
-      ).join('');
-      return '<details style="margin-bottom:10px;border:0.5px solid #f5c0d0;border-radius:12px;overflow:hidden;">' +
-        '<summary style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:500;color:#222;background:#fff8fb;">' +
-        '<span style="color:#D4537E;">' + c.sessionId + '</span>' +
-        '<span style="color:#aaa;font-size:11px;margin-right:8px;">' + c.date + '</span>' +
-        '</summary>' +
-        '<div style="padding:10px;background:#fafafa;">' + msgs + '</div>' +
-        '</details>';
-    }).join('');
+    try {
+      convs = JSON.parse(fs.readFileSync("./conversations.json", "utf8"));
+    } catch {}
+    if (convs.length === 0)
+      return '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد محادثات بعد</div>';
+    return convs
+      .slice(-20)
+      .reverse()
+      .map((c) => {
+        const msgs = c.history
+          .map(
+            (h) =>
+              '<div style="margin:4px 0;padding:6px 10px;border-radius:10px;background:' +
+              (h.role === "user" ? "#fff0f5" : "#f5f5f5") +
+              ';font-size:12px;color:#444;">' +
+              '<span style="color:' +
+              (h.role === "user" ? "#D4537E" : "#888") +
+              ';font-weight:500;">' +
+              (h.role === "user" ? "العميل: " : "ياسمين: ") +
+              "</span>" +
+              (function () {
+                try {
+                  var parsed = JSON.parse(
+                    h.content.replace(/\`\`\`json|\`\`\`/g, "").trim(),
+                  );
+                  return parsed.reply || "";
+                } catch (e) {
+                  return h.content.replace(/\{[\s\S]*?\}/g, "").trim();
+                }
+              })() +
+              "</div>",
+          )
+          .join("");
+        return (
+          '<details style="margin-bottom:10px;border:0.5px solid #f5c0d0;border-radius:12px;overflow:hidden;">' +
+          '<summary style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:500;color:#222;background:#fff8fb;">' +
+          '<span style="color:#D4537E;">' +
+          c.sessionId +
+          "</span>" +
+          '<span style="color:#aaa;font-size:11px;margin-right:8px;">' +
+          c.date +
+          "</span>" +
+          "</summary>" +
+          '<div style="padding:10px;background:#fafafa;">' +
+          msgs +
+          "</div>" +
+          "</details>"
+        );
+      })
+      .join("");
   })()}
 </div>
 
-<a class="refresh" style="margin:1rem auto;display:flex;width:fit-content;" href="/gifts-village-dashboard?pass=${DASHBOARD_PASSWORD}">
-  <i class="ti ti-refresh"></i> تحديث
-</a>
+<div style="display:flex;gap:10px;justify-content:center;margin-top:1rem;">
+  <a class="refresh" href="/gifts-village-dashboard">
+    <i class="ti ti-refresh"></i> تحديث
+  </a>
+  <button onclick="reloadProducts()" class="refresh" style="border:none;cursor:pointer;">
+    <i class="ti ti-package"></i> تحديث المنتجات
+  </button>
+  <a class="refresh" href="/gifts-village-dashboard-logout">
+    <i class="ti ti-logout"></i> خروج
+  </a>
+</div>
+
+<script>
+async function reloadProducts() {
+  const btn = event.target.closest('button');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader"></i> جاري التحديث...';
+  try {
+    const res = await fetch('/reload-products', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      btn.innerHTML = '<i class="ti ti-check"></i> تم! ' + data.total + ' منتج';
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-package"></i> تحديث المنتجات';
+      }, 3000);
+    }
+  } catch {
+    btn.innerHTML = '❌ فشل التحديث';
+    btn.disabled = false;
+  }
+}
+</script>
 
 </body>
 </html>`);
+});
+
+app.get("/gifts-village-dashboard-logout", function (req, res) {
+  req.session.destroy();
+  res.redirect("/gifts-village-dashboard");
 });
 
 // =========================
@@ -603,6 +728,16 @@ io.on("connection", (socket) => {
     socket.join(sessionId);
     clientSockets[sessionId] = socket.id;
     console.log("✅ CLIENT CONNECTED:", sessionId);
+  });
+
+  socket.on("disconnect", () => {
+    for (const id in clientSockets) {
+      if (clientSockets[id] === socket.id) {
+        delete clientSockets[id];
+        console.log("🔌 CLIENT DISCONNECTED:", id);
+        break;
+      }
+    }
   });
 });
 
@@ -714,7 +849,7 @@ app.post("/chat", async function (req, res) {
       supportMode[sessionId] = true;
       pendingSupport[sessionId] = true;
       stats.transferredToSupport++;
-saveStats();
+      saveStats();
 
       telegramUsers.forEach((id) => {
         bot.sendMessage(
@@ -755,15 +890,17 @@ ${sanitize(message)}`,
     session.history.push({ role: "user", content: message });
     session.lastActive = Date.now();
     saveConversation(sessionId);
-    const today = new Date().toLocaleDateString("ar-SA", { timeZone: "Asia/Riyadh" });
-if (!stats.dailyMessages[today]) stats.dailyMessages[today] = 0;
-stats.dailyMessages[today]++;
-stats.totalMessages++;
-if (!session.counted) {
-  stats.totalSessions++;
-  session.counted = true;
-}
-saveStats();
+    const today = new Date().toLocaleDateString("ar-SA", {
+      timeZone: "Asia/Riyadh",
+    });
+    if (!stats.dailyMessages[today]) stats.dailyMessages[today] = 0;
+    stats.dailyMessages[today]++;
+    stats.totalMessages++;
+    if (!session.counted) {
+      stats.totalSessions++;
+      session.counted = true;
+    }
+    saveStats();
 
     let matchedProducts = [];
 
@@ -773,8 +910,7 @@ saveStats();
 
       // استخراج المنتجات كاملة من المصفوفة الرئيسية بناءً على الـ IDs الفائزة
       const matchedIds = searchResults.map((doc) => doc.metadata.id);
-matchedProducts = products.filter((p) => matchedIds.includes(p.id));
-
+      matchedProducts = products.filter((p) => matchedIds.includes(p.id));
     }
 
     // إذا كان البحث فارغاً لأي سبب، نأخذ أول 3 منتجات كاحتياط
@@ -867,7 +1003,7 @@ ${catalog}
 `,
         },
 
-        ...session.history,
+        ...session.history.slice(-20),
       ],
     });
 
@@ -895,11 +1031,11 @@ ${catalog}
     if (parsed.recommend) {
       const selected = matchedProducts;
 
-      selected.forEach(function(p) {
-  if (!stats.productRequests[p.title]) stats.productRequests[p.title] = 0;
-  stats.productRequests[p.title]++;
-});
-saveStats();
+      selected.forEach(function (p) {
+        if (!stats.productRequests[p.title]) stats.productRequests[p.title] = 0;
+        stats.productRequests[p.title]++;
+      });
+      saveStats();
 
       return res.json({
         reply: parsed.reply,
@@ -919,9 +1055,15 @@ saveStats();
   } catch (err) {
     console.log("❌ CHAT ERROR:", err);
 
-    return res.json({
-      reply: "ياسمين لديها خلل تقني مؤقت 🌸",
+    const isOpenAIError =
+      err?.status === 429 ||
+      err?.status === 500 ||
+      err?.code === "ECONNREFUSED";
 
+    return res.json({
+      reply: isOpenAIError
+        ? "عذراً، ياسمين غير متاحة مؤقتاً 🌸 يمكنك التواصل مع خدمة العملاء مباشرة بكتابة (حولني)"
+        : "ياسمين لديها خلل تقني مؤقت 🌸",
       recommend: false,
     });
   }
@@ -962,20 +1104,22 @@ app.post("/review", async function (req, res) {
 
     // ✨ نقل وتجهيز سجل المحادثة هنا في الأعلى ليكون متاحاً للحالتين
     const history = sessions[sessionId]?.history || [];
-    let chatText = history.map((h) => {
-  if (h.role === "user") return `👤 العميل: ${h.content}`;
-  if (h.role === "assistant") {
-    const parsed = safeJson(h.content);
-    if (parsed && parsed.reply) return `🌸 ياسمين: ${parsed.reply}`;
-    if (h.content.startsWith("(الموظف):")) {
-      const employeeName = sessions[sessionId]?.handledBy || "الموظف";
-      const msgText = h.content.replace("(الموظف):", "").trim();
-      return `👨‍💼 ${employeeName}: ${msgText}`;
-    }
-    return `🌸 ياسمين: ${h.content}`;
-  }
-  return "";
-}).join("\n");
+    let chatText = history
+      .map((h) => {
+        if (h.role === "user") return `👤 العميل: ${h.content}`;
+        if (h.role === "assistant") {
+          const parsed = safeJson(h.content);
+          if (parsed && parsed.reply) return `🌸 ياسمين: ${parsed.reply}`;
+          if (h.content.startsWith("(الموظف):")) {
+            const employeeName = sessions[sessionId]?.handledBy || "الموظف";
+            const msgText = h.content.replace("(الموظف):", "").trim();
+            return `👨‍💼 ${employeeName}: ${msgText}`;
+          }
+          return `🌸 ياسمين: ${h.content}`;
+        }
+        return "";
+      })
+      .join("\n");
 
     // تحديد حجم المحادثة لكي لا تتجاوز حدود تليجرام
     if (chatText.length > 2500) {
