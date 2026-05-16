@@ -297,6 +297,33 @@ function saveStats() {
   fs.writeFileSync("./stats.json", JSON.stringify(stats, null, 2));
 }
 
+function saveConversation(sessionId) {
+  const session = sessions[sessionId];
+  if (!session || !session.history || session.history.length === 0) return;
+
+  let conversations = [];
+  try {
+    conversations = JSON.parse(fs.readFileSync("./conversations.json", "utf8"));
+  } catch {}
+
+  const existing = conversations.findIndex((c) => c.sessionId === sessionId);
+  const entry = {
+    sessionId: sessionId,
+    date: new Date().toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" }),
+    history: session.history,
+  };
+
+  if (existing !== -1) {
+    conversations[existing] = entry;
+  } else {
+    conversations.push(entry);
+  }
+
+  if (conversations.length > 200) conversations = conversations.slice(-200);
+
+  fs.writeFileSync("./conversations.json", JSON.stringify(conversations, null, 2));
+}
+
 // =========================
 // 🏪 STORE INFO
 // =========================
@@ -522,6 +549,32 @@ body{font-family:Arial,sans-serif;background:#FFF0F5;direction:rtl;padding:30px;
       `<div class="row"><span>${name}</span><span class="badge">${count} طلب</span></div>`
     ).join("") || '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد بيانات بعد</div>'}
 </div>
+<div class="card">
+  <div class="card-title"><i class="ti ti-messages"></i> آخر المحادثات</div>
+  ${(function() {
+    let convs = [];
+    try { convs = JSON.parse(fs.readFileSync("./conversations.json", "utf8")); } catch {}
+    if (convs.length === 0) return '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد محادثات بعد</div>';
+    return convs.slice(-20).reverse().map((c) => {
+      const msgs = c.history.map((h) =>
+        '<div style="margin:4px 0;padding:6px 10px;border-radius:10px;background:' +
+        (h.role === 'user' ? '#fff0f5' : '#f5f5f5') +
+        ';font-size:12px;color:#444;">' +
+        '<span style="color:' + (h.role === 'user' ? '#D4537E' : '#888') + ';font-weight:500;">' +
+        (h.role === 'user' ? 'العميل: ' : 'ياسمين: ') +
+        '</span>' + h.content.replace(/\{.*?\}/gs, '').trim() +
+        '</div>'
+      ).join('');
+      return '<details style="margin-bottom:10px;border:0.5px solid #f5c0d0;border-radius:12px;overflow:hidden;">' +
+        '<summary style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:500;color:#222;background:#fff8fb;">' +
+        '<span style="color:#D4537E;">' + c.sessionId + '</span>' +
+        '<span style="color:#aaa;font-size:11px;margin-right:8px;">' + c.date + '</span>' +
+        '</summary>' +
+        '<div style="padding:10px;background:#fafafa;">' + msgs + '</div>' +
+        '</details>';
+    }).join('');
+  })()}
+</div>
 
 <a class="refresh" style="margin:1rem auto;display:flex;width:fit-content;" href="/gifts-village-dashboard?pass=${DASHBOARD_PASSWORD}">
   <i class="ti ti-refresh"></i> تحديث
@@ -690,6 +743,7 @@ ${sanitize(message)}`,
     const session = sessions[sessionId];
     session.history.push({ role: "user", content: message });
     session.lastActive = Date.now();
+    saveConversation(sessionId);
     const today = new Date().toLocaleDateString("ar-SA", { timeZone: "Asia/Riyadh" });
 if (!stats.dailyMessages[today]) stats.dailyMessages[today] = 0;
 stats.dailyMessages[today]++;
