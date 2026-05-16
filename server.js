@@ -23,7 +23,7 @@ function isWorkTime() {
   );
   const day = now.getDay(); // 0 الأحد، 4 الخميس
   const hour = now.getHours();
-  return day >= 0 && day <= 6 && hour >= 10 && hour < 23;
+  return day >= 0 && day <= 4 && hour >= 10 && hour < 23;
 }
 const ALLOWED_ORIGIN = "https://gifts-village.sa";
 const app = express();
