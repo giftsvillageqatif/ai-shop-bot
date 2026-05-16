@@ -10,7 +10,7 @@ import { OpenAIEmbeddings } from "@langchain/openai";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { Document } from "@langchain/core/documents";
 import rateLimit from "express-rate-limit";
-import session from "express-session";
+
 
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
 
@@ -31,19 +31,6 @@ function isWorkTime() {
 const ALLOWED_ORIGIN = "https://gifts-village.sa";
 const app = express();
 const server = http.createServer(app);
-app.set('trust proxy', 1);
-
-app.use(session({
-  secret: process.env.DASHBOARD_PASSWORD,
-  resave: false,
-  saveUninitialized: false,
-  cookie: { 
-    maxAge: 60 * 60 * 1000,
-    secure: false,
-    httpOnly: true,
-    sameSite: 'lax'
-  }
-}));
 
 const io = new Server(server, {
   cors: {
@@ -492,17 +479,10 @@ app.get("/stats", function (req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.json(stats);
 });
-app.post("/gifts-village-dashboard-login", function (req, res) {
-  const pass = req.body.pass;
-  if (pass !== DASHBOARD_PASSWORD) {
-    return res.redirect("/gifts-village-dashboard");
-  }
-  req.session.authed = true;
-  res.redirect("/gifts-village-dashboard");
-});
 
 app.get("/gifts-village-dashboard", function (req, res) {
-  if (!req.session.authed) {
+  const pass = req.query.pass;
+  if (pass !== DASHBOARD_PASSWORD) {
     return res.send(`<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
@@ -510,6 +490,7 @@ app.get("/gifts-village-dashboard", function (req, res) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>لوحة تحكم ياسمين</title>
 <link rel="icon" href="https://media.zid.store/f9acd5af-b553-4b35-a418-e791211b7c21/620a4cd4-19e3-4fcb-8e28-5bd3e472eed2.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Arial,sans-serif;background:#FFF0F5;display:flex;align-items:center;justify-content:center;min-height:100vh;direction:rtl}
@@ -517,8 +498,6 @@ body{font-family:Arial,sans-serif;background:#FFF0F5;display:flex;align-items:ce
 .logo{font-size:36px;margin-bottom:0.5rem}
 .title{font-size:18px;font-weight:500;color:#222;margin-bottom:4px}
 .sub{font-size:13px;color:#aaa;margin-bottom:1.5rem}
-input{width:100%;padding:12px 16px;border-radius:12px;border:1px solid #f5c0d0;font-size:14px;outline:none;text-align:right;color:#222;background:#FFF8FB;margin-bottom:12px}
-input:focus{border-color:#D4537E}
 button{width:100%;padding:12px;background:#D4537E;color:#fff;border:none;border-radius:12px;font-size:15px;cursor:pointer;font-weight:500}
 button:hover{background:#c0476d}
 </style>
@@ -528,34 +507,33 @@ button:hover{background:#c0476d}
   <div class="logo">🌸</div>
   <div class="title">لوحة تحكم ياسمين</div>
   <div class="sub">أدخل الرقم السري للمتابعة</div>
-  <form method="POST" action="/gifts-village-dashboard-login">
+  <form method="GET">
     <div style="position:relative;margin-bottom:12px;">
-  <input id="passInput" name="pass" type="password" placeholder="الرقم السري" style="width:100%;padding:12px 44px 12px 16px;border-radius:12px;border:1px solid #f5c0d0;font-size:14px;outline:none;text-align:right;color:#222;background:#FFF8FB;" />
-  <span onclick="togglePass()" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:#D4537E;">
-  <i id="eyeIcon" class="ti ti-eye" style="font-size:18px;"></i>
-</span>
-</div>
-<button type="submit">دخول</button>
-<script>
-function togglePass() {
-  const input = document.getElementById('passInput');
-  const icon = document.getElementById('eyeIcon');
-  if (input.type === 'password') {
-    input.type = 'text';
-    icon.className = 'ti ti-eye-off';
-  } else {
-    input.type = 'password';
-    icon.className = 'ti ti-eye';
-  }
-}
-</script>
+      <input id="passInput" name="pass" type="password" placeholder="الرقم السري" style="width:100%;padding:12px 44px 12px 16px;border-radius:12px;border:1px solid #f5c0d0;font-size:14px;outline:none;text-align:right;color:#222;background:#FFF8FB;" />
+      <span onclick="togglePass()" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:#D4537E;">
+        <i id="eyeIcon" class="ti ti-eye" style="font-size:18px;"></i>
+      </span>
+    </div>
+    <button type="submit">دخول</button>
   </form>
+  <script>
+  function togglePass() {
+    const input = document.getElementById('passInput');
+    const icon = document.getElementById('eyeIcon');
+    if (input.type === 'password') {
+      input.type = 'text';
+      icon.className = 'ti ti-eye-off';
+    } else {
+      input.type = 'password';
+      icon.className = 'ti ti-eye';
+    }
+  }
+  </script>
 </div>
 </body>
 </html>`);
   }
 
-  // نفس صفحة الداشبورد الحالية بدون ?pass في الـ URL
   res.send(`<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
@@ -615,101 +593,62 @@ body{font-family:Arial,sans-serif;background:#FFF0F5;direction:rtl;padding:30px;
 
 <div class="card">
   <div class="card-title"><i class="ti ti-calendar-stats"></i> آخر 7 أيام</div>
-  ${
-    Object.entries(stats.dailyMessages)
-      .slice(-7)
-      .reverse()
-      .map(
-        ([d, c]) =>
-          `<div class="row"><span style="color:#888">${d}</span><span class="badge">${c} رسالة</span></div>`,
-      )
-      .join("") ||
-    '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد بيانات بعد</div>'
-  }
+  ${Object.entries(stats.dailyMessages).slice(-7).reverse().map(([d,c]) =>
+    `<div class="row"><span style="color:#888">${d}</span><span class="badge">${c} رسالة</span></div>`
+  ).join("") || '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد بيانات بعد</div>'}
 </div>
 
 <div class="card">
   <div class="card-title"><i class="ti ti-shopping-bag"></i> أكثر المنتجات طلباً</div>
-  ${
-    Object.entries(stats.productRequests)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(
-        ([name, count]) =>
-          `<div class="row"><span>${name}</span><span class="badge">${count} طلب</span></div>`,
-      )
-      .join("") ||
-    '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد بيانات بعد</div>'
-  }
+  ${Object.entries(stats.productRequests)
+    .sort((a,b) => b[1]-a[1])
+    .slice(0,10)
+    .map(([name,count]) =>
+      `<div class="row"><span>${name}</span><span class="badge">${count} طلب</span></div>`
+    ).join("") || '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد بيانات بعد</div>'}
 </div>
 
 <div class="card">
   <div class="card-title"><i class="ti ti-messages"></i> آخر المحادثات</div>
-  ${(function () {
+  ${(function() {
     let convs = [];
-    try {
-      convs = JSON.parse(fs.readFileSync("./conversations.json", "utf8"));
-    } catch {}
-    if (convs.length === 0)
-      return '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد محادثات بعد</div>';
-    return convs
-      .slice(-20)
-      .reverse()
-      .map((c) => {
-        const msgs = c.history
-          .map(
-            (h) =>
-              '<div style="margin:4px 0;padding:6px 10px;border-radius:10px;background:' +
-              (h.role === "user" ? "#fff0f5" : "#f5f5f5") +
-              ';font-size:12px;color:#444;">' +
-              '<span style="color:' +
-              (h.role === "user" ? "#D4537E" : "#888") +
-              ';font-weight:500;">' +
-              (h.role === "user" ? "العميل: " : "ياسمين: ") +
-              "</span>" +
-              (function () {
-                try {
-                  var parsed = JSON.parse(
-                    h.content.replace(/\`\`\`json|\`\`\`/g, "").trim(),
-                  );
-                  return parsed.reply || "";
-                } catch (e) {
-                  return h.content.replace(/\{[\s\S]*?\}/g, "").trim();
-                }
-              })() +
-              "</div>",
-          )
-          .join("");
-        return (
-          '<details style="margin-bottom:10px;border:0.5px solid #f5c0d0;border-radius:12px;overflow:hidden;">' +
-          '<summary style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:500;color:#222;background:#fff8fb;">' +
-          '<span style="color:#D4537E;">' +
-          c.sessionId +
-          "</span>" +
-          '<span style="color:#aaa;font-size:11px;margin-right:8px;">' +
-          c.date +
-          "</span>" +
-          "</summary>" +
-          '<div style="padding:10px;background:#fafafa;">' +
-          msgs +
-          "</div>" +
-          "</details>"
-        );
-      })
-      .join("");
+    try { convs = JSON.parse(fs.readFileSync("./conversations.json", "utf8")); } catch {}
+    if (convs.length === 0) return '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد محادثات بعد</div>';
+    return convs.slice(-20).reverse().map((c) => {
+      const msgs = c.history.map((h) =>
+        '<div style="margin:4px 0;padding:6px 10px;border-radius:10px;background:' +
+        (h.role === 'user' ? '#fff0f5' : '#f5f5f5') +
+        ';font-size:12px;color:#444;">' +
+        '<span style="color:' + (h.role === 'user' ? '#D4537E' : '#888') + ';font-weight:500;">' +
+        (h.role === 'user' ? 'العميل: ' : 'ياسمين: ') +
+        '</span>' + (function() {
+          try {
+            var parsed = JSON.parse(h.content.replace(/\`\`\`json|\`\`\`/g,'').trim());
+            return parsed.reply || '';
+          } catch(e) {
+            return h.content.replace(/\{[\s\S]*?\}/g,'').trim();
+          }
+        })() +
+        '</div>'
+      ).join('');
+      return '<details style="margin-bottom:10px;border:0.5px solid #f5c0d0;border-radius:12px;overflow:hidden;">' +
+        '<summary style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:500;color:#222;background:#fff8fb;">' +
+        '<span style="color:#D4537E;">' + c.sessionId + '</span>' +
+        '<span style="color:#aaa;font-size:11px;margin-right:8px;">' + c.date + '</span>' +
+        '</summary>' +
+        '<div style="padding:10px;background:#fafafa;">' + msgs + '</div>' +
+        '</details>';
+    }).join('');
   })()}
 </div>
 
 <div style="display:flex;gap:10px;justify-content:center;margin-top:1rem;">
-  <a class="refresh" href="/gifts-village-dashboard">
+  <a class="refresh" href="/gifts-village-dashboard?pass=${DASHBOARD_PASSWORD}">
     <i class="ti ti-refresh"></i> تحديث
   </a>
   <button onclick="reloadProducts()" class="refresh" style="border:none;cursor:pointer;">
     <i class="ti ti-package"></i> تحديث المنتجات
   </button>
-  <a class="refresh" href="/gifts-village-dashboard-logout">
-    <i class="ti ti-logout"></i> خروج
-  </a>
 </div>
 
 <script>
@@ -718,7 +657,7 @@ async function reloadProducts() {
   btn.disabled = true;
   btn.innerHTML = '<i class="ti ti-loader"></i> جاري التحديث...';
   try {
-    const res = await fetch('/reload-products', { method: 'POST' });
+    const res = await fetch('/reload-products?pass=${DASHBOARD_PASSWORD}', { method: 'POST' });
     const data = await res.json();
     if (data.success) {
       btn.innerHTML = '<i class="ti ti-check"></i> تم! ' + data.total + ' منتج';
@@ -736,11 +675,6 @@ async function reloadProducts() {
 
 </body>
 </html>`);
-});
-
-app.get("/gifts-village-dashboard-logout", function (req, res) {
-  req.session.destroy();
-  res.redirect("/gifts-village-dashboard");
 });
 
 // =========================
