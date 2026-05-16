@@ -531,13 +531,22 @@ button:hover{background:#c0476d}
   <form method="POST" action="/gifts-village-dashboard-login">
     <div style="position:relative;margin-bottom:12px;">
   <input id="passInput" name="pass" type="password" placeholder="الرقم السري" style="width:100%;padding:12px 44px 12px 16px;border-radius:12px;border:1px solid #f5c0d0;font-size:14px;outline:none;text-align:right;color:#222;background:#FFF8FB;" />
-  <span onclick="togglePass()" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none;">👁</span>
+  <span onclick="togglePass()" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:#D4537E;">
+  <i id="eyeIcon" class="ti ti-eye" style="font-size:18px;"></i>
+</span>
 </div>
 <button type="submit">دخول</button>
 <script>
 function togglePass() {
   const input = document.getElementById('passInput');
-  input.type = input.type === 'password' ? 'text' : 'password';
+  const icon = document.getElementById('eyeIcon');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.className = 'ti ti-eye-off';
+  } else {
+    input.type = 'password';
+    icon.className = 'ti ti-eye';
+  }
 }
 </script>
   </form>
