@@ -331,18 +331,14 @@ async function loadProducts() {
         .trim();
 
       return {
-        id: i,
-
-        title: p.name || "",
-
-        description: p.description || "",
-
-        price: p.price || "",
-
-        image: image,
-
-        url: p.url || "",
-      };
+  id: i,
+  title: p.name || "",
+  description: p.description || "",
+  price: p.price || "",
+  image: image,
+  url: p.url || "",
+  tags: String(p.tags || ""),
+};
     });
 
     console.log("✅ PRODUCTS:", products.length);
@@ -559,8 +555,17 @@ ${sanitize(message)}`,
 
       // استخراج المنتجات كاملة من المصفوفة الرئيسية بناءً على الـ IDs الفائزة
       const matchedIds = searchResults.map((doc) => doc.metadata.id);
-      matchedProducts = products.filter((p) => matchedIds.includes(p.id));
-    }
+matchedProducts = products.filter((p) => matchedIds.includes(p.id));
+
+const lowerMsg = message.toLowerCase();
+let categoryTag = null;
+if (lowerMsg.includes("ولد") || lowerMsg.includes("اولاد") || lowerMsg.includes("أولاد")) categoryTag = "ولد";
+else if (lowerMsg.includes("بنت") || lowerMsg.includes("بنات")) categoryTag = "بنات";
+
+if (categoryTag) {
+  const filtered = matchedProducts.filter((p) => p.tags.includes(categoryTag));
+  if (filtered.length > 0) matchedProducts = filtered;
+}
 
     // إذا كان البحث فارغاً لأي سبب، نأخذ أول 3 منتجات كاحتياط
     if (matchedProducts.length === 0) {
