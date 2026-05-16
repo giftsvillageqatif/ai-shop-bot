@@ -416,22 +416,46 @@ app.get("/stats", function (req, res) {
 app.get("/gifts-village-dashboard", function (req, res) {
   const pass = req.query.pass;
   if (pass !== DASHBOARD_PASSWORD) {
-    return res.send(`
-      <html><body style="font-family:Arial;text-align:center;padding:50px;">
-        <h2>🔐 لوحة تحكم ياسمين</h2>
-        <form method="GET">
-          <input name="pass" type="password" placeholder="الرقم السري" style="padding:10px;border-radius:10px;border:1px solid #eee;margin:10px;">
-          <button type="submit" style="padding:10px 20px;background:#ff4da6;color:#fff;border:none;border-radius:10px;cursor:pointer;">دخول</button>
-        </form>
-      </body></html>
-    `);
+    return res.send(`<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>لوحة تحكم ياسمين الخاص بقرية الهدايا</title>
+<link rel="icon" href="https://media.zid.store/f9acd5af-b553-4b35-a418-e791211b7c21/620a4cd4-19e3-4fcb-8e28-5bd3e472eed2.png">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#FFF0F5;display:flex;align-items:center;justify-content:center;min-height:100vh;direction:rtl}
+.box{background:#fff;border-radius:20px;padding:2.5rem 2rem;text-align:center;width:100%;max-width:360px;border:0.5px solid #f5c0d0}
+.logo{font-size:36px;margin-bottom:0.5rem}
+.title{font-size:18px;font-weight:500;color:#222;margin-bottom:4px}
+.sub{font-size:13px;color:#aaa;margin-bottom:1.5rem}
+input{width:100%;padding:12px 16px;border-radius:12px;border:1px solid #f5c0d0;font-size:14px;outline:none;text-align:right;color:#222;background:#FFF8FB;margin-bottom:12px}
+input:focus{border-color:#D4537E}
+button{width:100%;padding:12px;background:#D4537E;color:#fff;border:none;border-radius:12px;font-size:15px;cursor:pointer;font-weight:500}
+button:hover{background:#c0476d}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="logo">🌸</div>
+  <div class="title">لوحة تحكم ياسمين الخاص بقرية الهدايا</div>
+  <div class="sub">أدخل الرقم السري للمتابعة</div>
+  <form method="GET">
+    <input name="pass" type="password" placeholder="الرقم السري" />
+    <button type="submit">دخول</button>
+  </form>
+</div>
+</body>
+</html>`);
   } 
       res.send(`<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>لوحة تحكم ياسمين</title>
+<title>لوحة تحكم ياسمين الخاص بقرية الهدايا</title>
+<link rel="icon" href="https://media.zid.store/f9acd5af-b553-4b35-a418-e791211b7c21/620a4cd4-19e3-4fcb-8e28-5bd3e472eed2.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -459,7 +483,7 @@ body{font-family:Arial,sans-serif;background:#FFF0F5;direction:rtl;padding:30px;
 <div class="header">
   <div class="avatar">🌸</div>
   <div>
-    <div class="title">لوحة تحكم ياسمين</div>
+    <div class="title">لوحة تحكم ياسمين الخاص بقرية الهدايا</div>
     <div class="subtitle">إحصائيات المتجر</div>
   </div>
 </div>
