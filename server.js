@@ -435,7 +435,7 @@ app.get("/gifts-village-dashboard", function (req, res) {
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,sans-serif;background:#fafafa;direction:rtl;padding:30px;color:#222}
+body{font-family:Arial,sans-serif;background:#FFF0F5;direction:rtl;padding:30px;color:#222}
 .header{display:flex;align-items:center;gap:12px;margin-bottom:2rem}
 .avatar{width:42px;height:42px;border-radius:50%;background:#FBEAF0;display:flex;align-items:center;justify-content:center;font-size:20px}
 .title{font-size:18px;font-weight:500}
