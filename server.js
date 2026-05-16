@@ -36,7 +36,12 @@ app.use(session({
   secret: process.env.DASHBOARD_PASSWORD,
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 60 * 60 * 1000 }
+  cookie: { 
+    maxAge: 60 * 60 * 1000,
+    secure: false,
+    httpOnly: true,
+    sameSite: 'lax'
+  }
 }));
 
 const io = new Server(server, {
