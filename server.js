@@ -194,6 +194,15 @@ bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text || "";
 
+  if (text === "/start") {
+    bot.sendMessage(
+      chatId,
+      `🌸 أهلاً بك في نظام قرية الهدايا\n\n🆔 الـ Chat ID الخاص بك:\n<code>${chatId}</code>`,
+      { parse_mode: "HTML" },
+    );
+    return;
+  }
+
   // إنهاء المحادثة
   if (text === "/end" && employeeSessions[chatId]) {
     const sessionId = employeeSessions[chatId];
@@ -232,15 +241,6 @@ bot.on("message", (msg) => {
       message: text,
     });
 
-    return;
-  }
-
-  if (text === "/start") {
-    bot.sendMessage(
-      chatId,
-      `🌸 أهلاً بك في نظام قرية الهدايا\n\n🆔 الـ Chat ID الخاص بك:\n<code>${chatId}</code>`,
-      { parse_mode: "HTML" },
-    );
     return;
   }
 });
