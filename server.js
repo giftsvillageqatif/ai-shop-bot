@@ -427,6 +427,10 @@ function safeJson(text) {
 // =========================
 // ❤️ ROOT
 // =========================
+app.get("/beep.wav", function (req, res) {
+  res.sendFile(new URL('./beep.wav', import.meta.url).pathname);
+});
+
 app.get("/", function (req, res) {
   res.send("🌸 Yasmin AI Running");
 });
