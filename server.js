@@ -562,7 +562,14 @@ body{font-family:Arial,sans-serif;background:#FFF0F5;direction:rtl;padding:30px;
         ';font-size:12px;color:#444;">' +
         '<span style="color:' + (h.role === 'user' ? '#D4537E' : '#888') + ';font-weight:500;">' +
         (h.role === 'user' ? 'العميل: ' : 'ياسمين: ') +
-        '</span>' + h.content.replace(/\{[\s\S]*?\}/g, '').trim() +
+        '</span>' + (function() {
+  try {
+    var parsed = JSON.parse(h.content.replace(/```json|```/g,'').trim());
+    return parsed.reply || '';
+  } catch(e) {
+    return h.content.replace(/\{[\s\S]*?\}/g,'').trim();
+  }
+})() +
         '</div>'
       ).join('');
       return '<details style="margin-bottom:10px;border:0.5px solid #f5c0d0;border-radius:12px;overflow:hidden;">' +
