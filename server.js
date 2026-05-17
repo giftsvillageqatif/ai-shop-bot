@@ -820,6 +820,7 @@ app.post("/end-support", async function (req, res) {
 
 app.post("/chat", async function (req, res) {
   let matchedProducts = [];
+  const message = req.body.message || "";
   try {
     const sessionId = req.body.sessionId || "guest";
 
@@ -828,8 +829,6 @@ app.post("/chat", async function (req, res) {
         .status(400)
         .json({ reply: "🌸 طلب غير صحيح", recommend: false });
     }
-
-    const message = req.body.message || "";
 
     if (!message.trim()) {
       return res.json({ reply: "🌸 الرسالة فارغة", recommend: false });
