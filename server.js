@@ -10,9 +10,56 @@ import { OpenAIEmbeddings } from "@langchain/openai";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { Document } from "@langchain/core/documents";
 import rateLimit from "express-rate-limit";
-
+import mongoose from "mongoose";
 
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
+
+// =========================
+// 🍃 MONGODB
+// =========================
+mongoose.connect(process.env.MONGODB_URI).then(() => {
+  console.log("✅ MONGODB CONNECTED");
+}).catch((err) => {
+  console.log("❌ MONGODB ERROR:", err.message);
+});
+
+const ReviewSchema = new mongoose.Schema({
+  sessionId: String,
+  rating: Number,
+  wrap: String,
+  wrapColor: String,
+  note: String,
+  date: String,
+  employee: String,
+});
+
+const ChatReviewSchema = new mongoose.Schema({
+  sessionId: String,
+  employeeName: String,
+  rating: Number,
+  note: String,
+  date: String,
+});
+
+const StatsSchema = new mongoose.Schema({
+  key: { type: String, default: "main" },
+  totalSessions: { type: Number, default: 0 },
+  totalMessages: { type: Number, default: 0 },
+  transferredToSupport: { type: Number, default: 0 },
+  dailyMessages: { type: Map, of: Number, default: {} },
+  productRequests: { type: Map, of: Number, default: {} },
+});
+
+const ConversationSchema = new mongoose.Schema({
+  sessionId: String,
+  date: String,
+  history: Array,
+});
+
+const ReviewModel = mongoose.model("Review", ReviewSchema);
+const ChatReviewModel = mongoose.model("ChatReview", ChatReviewSchema);
+const StatsModel = mongoose.model("Stats", StatsSchema);
+const ConversationModel = mongoose.model("Conversation", ConversationSchema);
 
 let vectorStore = null;
 const embeddings = new OpenAIEmbeddings({
@@ -314,42 +361,58 @@ let stats = {
   productRequests: {},
 };
 
-try {
-  stats = JSON.parse(fs.readFileSync("./stats.json", "utf8"));
-} catch {}
-
-function saveStats() {
-  fs.writeFileSync("./stats.json", JSON.stringify(stats, null, 2));
+async function loadStats() {
+  try {
+    const doc = await StatsModel.findOne({ key: "main" });
+    if (doc) {
+      stats.totalSessions = doc.totalSessions;
+      stats.totalMessages = doc.totalMessages;
+      stats.transferredToSupport = doc.transferredToSupport;
+      stats.dailyMessages = Object.fromEntries(doc.dailyMessages || {});
+      stats.productRequests = Object.fromEntries(doc.productRequests || {});
+    }
+  } catch (err) {
+    console.log("❌ LOAD STATS ERROR:", err.message);
+  }
 }
 
-function saveConversation(sessionId) {
+async function saveStats() {
+  try {
+    await StatsModel.findOneAndUpdate(
+      { key: "main" },
+      {
+        totalSessions: stats.totalSessions,
+        totalMessages: stats.totalMessages,
+        transferredToSupport: stats.transferredToSupport,
+        dailyMessages: stats.dailyMessages,
+        productRequests: stats.productRequests,
+      },
+      { upsert: true }
+    );
+  } catch (err) {
+    console.log("❌ SAVE STATS ERROR:", err.message);
+  }
+}
+
+loadStats();
+
+async function saveConversation(sessionId) {
   const session = sessions[sessionId];
   if (!session || !session.history || session.history.length === 0) return;
 
-  let conversations = [];
   try {
-    conversations = JSON.parse(fs.readFileSync("./conversations.json", "utf8"));
-  } catch {}
-
-  const existing = conversations.findIndex((c) => c.sessionId === sessionId);
-  const entry = {
-    sessionId: sessionId,
-    date: new Date().toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" }),
-    history: session.history,
-  };
-
-  if (existing !== -1) {
-    conversations[existing] = entry;
-  } else {
-    conversations.push(entry);
+    await ConversationModel.findOneAndUpdate(
+      { sessionId },
+      {
+        sessionId,
+        date: new Date().toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" }),
+        history: session.history,
+      },
+      { upsert: true }
+    );
+  } catch (err) {
+    console.log("❌ SAVE CONVERSATION ERROR:", err.message);
   }
-
-  if (conversations.length > 200) conversations = conversations.slice(-200);
-
-  fs.writeFileSync(
-    "./conversations.json",
-    JSON.stringify(conversations, null, 2),
-  );
 }
 
 // =========================
@@ -480,7 +543,7 @@ app.get("/stats", function (req, res) {
   res.json(stats);
 });
 
-app.get("/gifts-village-dashboard", function (req, res) {
+app.get("/gifts-village-dashboard", async function (req, res) {
   const pass = req.query.pass;
   if (pass !== DASHBOARD_PASSWORD) {
     return res.send(`<!DOCTYPE html>
@@ -533,6 +596,30 @@ button:hover{background:#c0476d}
 </body>
 </html>`);
   }
+// جلب البيانات من MongoDB قبل بناء الصفحة
+  let reviewAvg = "—";
+  let chatReviewAvg = "—";
+  let convs = [];
+
+  try {
+    const reviews = await ReviewModel.find().lean();
+    if (reviews.length > 0) {
+      const avg = reviews.reduce((sum, r) => sum + Number(r.rating), 0) / reviews.length;
+      reviewAvg = avg.toFixed(1) + " ⭐";
+    }
+  } catch {}
+
+  try {
+    const chatReviews = await ChatReviewModel.find().lean();
+    if (chatReviews.length > 0) {
+      const avg = chatReviews.reduce((sum, r) => sum + Number(r.rating), 0) / chatReviews.length;
+      chatReviewAvg = avg.toFixed(1) + " ⭐";
+    }
+  } catch {}
+
+  try {
+    convs = await ConversationModel.find().sort({ _id: -1 }).limit(20).lean();
+  } catch {}
 
   res.send(`<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -591,78 +678,102 @@ body{font-family:Arial,sans-serif;background:#FFF0F5;direction:rtl;padding:30px;
   </div>
   <div class="stat">
     <i class="ti ti-star"></i>
-    <div class="stat-val">${(function() {
-      try {
-        const reviews = JSON.parse(fs.readFileSync('./reviews.json', 'utf8'));
-        if (reviews.length === 0) return '—';
-        const avg = reviews.reduce((sum, r) => sum + Number(r.rating), 0) / reviews.length;
-        return avg.toFixed(1) + ' ⭐';
-      } catch { return '—'; }
-    })()}</div>
+    <div class="stat-val">${reviewAvg}</div>
     <div class="stat-label">متوسط تقييم المتجر</div>
   </div>
   <div class="stat">
     <i class="ti ti-star-half"></i>
-    <div class="stat-val">${(function() {
-      try {
-        const chatReviews = JSON.parse(fs.readFileSync('./chat_reviews.json', 'utf8'));
-        if (chatReviews.length === 0) return '—';
-        const avg = chatReviews.reduce((sum, r) => sum + Number(r.rating), 0) / chatReviews.length;
-        return avg.toFixed(1) + ' ⭐';
-      } catch { return '—'; }
-    })()}</div>
+    <div class="stat-val">${chatReviewAvg}</div>
     <div class="stat-label">متوسط تقييم خدمة العملاء</div>
   </div>
 </div>
 
 <div class="card">
   <div class="card-title"><i class="ti ti-calendar-stats"></i> آخر 7 أيام</div>
-  ${Object.entries(stats.dailyMessages).slice(-7).reverse().map(([d,c]) =>
-    `<div class="row"><span style="color:#888">${d}</span><span class="badge">${c} رسالة</span></div>`
-  ).join("") || '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد بيانات بعد</div>'}
+  ${
+    Object.entries(stats.dailyMessages)
+      .slice(-7)
+      .reverse()
+      .map(
+        ([d, c]) =>
+          `<div class="row"><span style="color:#888">${d}</span><span class="badge">${c} رسالة</span></div>`,
+      )
+      .join("") ||
+    '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد بيانات بعد</div>'
+  }
 </div>
 
 <div class="card">
   <div class="card-title"><i class="ti ti-shopping-bag"></i> أكثر المنتجات طلباً</div>
-  ${Object.entries(stats.productRequests)
-    .sort((a,b) => b[1]-a[1])
-    .slice(0,10)
-    .map(([name,count]) =>
-      `<div class="row"><span>${name}</span><span class="badge">${count} طلب</span></div>`
-    ).join("") || '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد بيانات بعد</div>'}
+  ${
+    Object.entries(stats.productRequests)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(
+        ([name, count]) =>
+          `<div class="row"><span>${name}</span><span class="badge">${count} طلب</span></div>`,
+      )
+      .join("") ||
+    '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد بيانات بعد</div>'
+  }
 </div>
 
 <div class="card">
   <div class="card-title"><i class="ti ti-messages"></i> آخر المحادثات</div>
-  ${(function() {
-    let convs = [];
-    try { convs = JSON.parse(fs.readFileSync("./conversations.json", "utf8")); } catch {}
-    if (convs.length === 0) return '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد محادثات بعد</div>';
-    return convs.slice(-20).reverse().map((c) => {
-      const msgs = c.history.map((h) =>
-        '<div style="margin:4px 0;padding:6px 10px;border-radius:10px;background:' +
-        (h.role === 'user' ? '#fff0f5' : '#f5f5f5') +
-        ';font-size:12px;color:#444;">' +
-        '<span style="color:' + (h.role === 'user' ? '#D4537E' : '#888') + ';font-weight:500;">' +
-        (h.role === 'user' ? 'العميل: ' : 'ياسمين: ') +
-        '</span>' + (function() {
-          try {
-            var parsed = JSON.parse(h.content.replace(/\`\`\`json|\`\`\`/g,'').trim());
-            return parsed.reply || '';
-          } catch(e) {
-            return h.content.replace(/\{[\s\S]*?\}/g,'').replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" style="display:inline-block;margin-top:6px;padding:6px 14px;background:#D4537E;color:#fff;border-radius:20px;font-size:12px;text-decoration:none;">$1</a>').trim();
-          }
-        })() +
-        '</div>'
-      ).join('');
-      return '<details style="margin-bottom:10px;border:0.5px solid #f5c0d0;border-radius:12px;overflow:hidden;">' +
-        '<summary style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:500;color:#222;background:#fff8fb;">' +
-        '<span style="color:#D4537E;">' + c.sessionId + '</span>' +
-        '<span style="color:#aaa;font-size:11px;margin-right:8px;">' + c.date + '</span>' +
-        '</summary>' +
-        '<div style="padding:10px;background:#fafafa;">' + msgs + '</div>' +
-        '</details>';
-    }).join('');
+  ${(function () {
+    if (convs.length === 0)
+      return '<div style="color:#aaa;font-size:13px;text-align:center;padding:1rem">لا توجد محادثات بعد</div>';
+    return convs
+      .slice(-20)
+      .reverse()
+      .map((c) => {
+        const msgs = c.history
+          .map(
+            (h) =>
+              '<div style="margin:4px 0;padding:6px 10px;border-radius:10px;background:' +
+              (h.role === "user" ? "#fff0f5" : "#f5f5f5") +
+              ';font-size:12px;color:#444;">' +
+              '<span style="color:' +
+              (h.role === "user" ? "#D4537E" : "#888") +
+              ';font-weight:500;">' +
+              (h.role === "user" ? "العميل: " : "ياسمين: ") +
+              "</span>" +
+              (function () {
+                try {
+                  var parsed = JSON.parse(
+                    h.content.replace(/\`\`\`json|\`\`\`/g, "").trim(),
+                  );
+                  return parsed.reply || "";
+                } catch (e) {
+                  return h.content
+                    .replace(/\{[\s\S]*?\}/g, "")
+                    .replace(
+                      /\[([^\]]+)\]\(([^)]+)\)/g,
+                      '<a href="$2" target="_blank" style="display:inline-block;margin-top:6px;padding:6px 14px;background:#D4537E;color:#fff;border-radius:20px;font-size:12px;text-decoration:none;">$1</a>',
+                    )
+                    .trim();
+                }
+              })() +
+              "</div>",
+          )
+          .join("");
+        return (
+          '<details style="margin-bottom:10px;border:0.5px solid #f5c0d0;border-radius:12px;overflow:hidden;">' +
+          '<summary style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:500;color:#222;background:#fff8fb;">' +
+          '<span style="color:#D4537E;">' +
+          c.sessionId +
+          "</span>" +
+          '<span style="color:#aaa;font-size:11px;margin-right:8px;">' +
+          c.date +
+          "</span>" +
+          "</summary>" +
+          '<div style="padding:10px;background:#fafafa;">' +
+          msgs +
+          "</div>" +
+          "</details>"
+        );
+      })
+      .join("");
   })()}
 </div>
 
@@ -1118,29 +1229,14 @@ app.post("/review", async function (req, res) {
     // الحالة الأولى: تقييم محادثة خدمة العملاء المباشرة 👨‍💼
     // -------------------------------------------------------------
     if (note === "تقييم محادثة مباشرة") {
-      let chatReviews = [];
-      try {
-        chatReviews = JSON.parse(
-          fs.readFileSync("./chat_reviews.json", "utf8"),
-        );
-      } catch {}
-
-      const employeeName =
-        sessions[sessionId]?.handledBy || "موظف خدمة العملاء";
-
-      const chatReviewObj = {
-        sessionId: sessionId,
-        employeeName: employeeName,
-        rating: rating,
-        note: note,
-        date: dateStr,
-      };
-
-      chatReviews.push(chatReviewObj);
-      fs.writeFileSync(
-        "./chat_reviews.json",
-        JSON.stringify(chatReviews, null, 2),
-      );
+      const employeeName = sessions[sessionId]?.handledBy || "موظف خدمة العملاء";
+      await ChatReviewModel.create({
+  sessionId,
+  employeeName,
+  rating,
+  note,
+  date: dateStr,
+});
 
       // إرسال تقرير تقييم الموظف لتليجرام مع السجل الآن بنجاح ✅
       await sendTelegramMessage(
@@ -1165,21 +1261,14 @@ app.post("/review", async function (req, res) {
     // -------------------------------------------------------------
     // الحالة الثانية: تقييم المتجر والتغليف عند إكمال الطلب 🎁
     // -------------------------------------------------------------
-    let reviews = [];
-    try {
-      reviews = JSON.parse(fs.readFileSync("./reviews.json", "utf8"));
-    } catch {}
-
-    const hasAlreadyReviewedStore = reviews.some(
-      (r) => r.sessionId === sessionId,
-    );
-    if (hasAlreadyReviewedStore) {
-      return res.json({
-        success: true,
-        alreadyReviewed: true,
-        message: "تم استقبال تقييمك لهذا الطلب مسبقاً!",
-      });
-    }
+    const hasAlreadyReviewedStore = await ReviewModel.findOne({ sessionId });
+if (hasAlreadyReviewedStore) {
+  return res.json({
+    success: true,
+    alreadyReviewed: true,
+    message: "تم استقبال تقييمك لهذا الطلب مسبقاً!",
+  });
+}
 
     const review = {
       rating: rating,
@@ -1192,8 +1281,11 @@ app.post("/review", async function (req, res) {
     const employeeName =
       sessions[sessionId]?.handledBy || "ياسمين (الذكاء الاصطناعي)";
 
-    reviews.push({ ...review, employee: employeeName, sessionId: sessionId });
-    fs.writeFileSync("./reviews.json", JSON.stringify(reviews, null, 2));
+    await ReviewModel.create({
+  ...review,
+  employee: employeeName,
+  sessionId,
+});
 
     function formatWrapColor(color) {
       if (color === "blue" || color === "أزرق 🔵") return "أزرق 🔵";
