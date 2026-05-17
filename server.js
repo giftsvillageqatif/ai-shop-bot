@@ -397,21 +397,22 @@ async function loadProducts() {
         .trim();
 
       return {
-        id: i,
-        title: p.name || "",
-        description: p.description || "",
-        price: p.price || "",
-        image: image,
-        url: p.url || "",
-        tags: String(p.tags || ""),
-      };
+  id: i,
+  title: p.name || "",
+  description: p.description || "",
+  price: p.price || "",
+  image: image,
+  url: p.url || "",
+  tags: String(p.tags || ""),
+  gender: String(p.gender || "الكل"),
+  age: String(p.age || ""),
+};
     });
 
     console.log("✅ PRODUCTS:", products.length);
 
     const documents = products.map((p) => {
-      const pageContent = `الاسم: ${p.title}\nالوصف: ${p.description}\nالسعر: ${p.price}\nالتصنيف: ${p.tags}`;
-      return new Document({
+      const pageContent = `الاسم: ${p.title}\nالوصف: ${p.description}\nالسعر: ${p.price}\nالتصنيف: ${p.tags}\nمناسب لـ: ${p.gender}\nالفئة العمرية: ${p.age}`;
         pageContent: pageContent,
         metadata: { id: p.id }, // نحتفظ بالـ ID لنجلب المنتج بالكامل لاحقاً
       });
@@ -896,24 +897,11 @@ ${sanitize(message)}`,
     }
 
     const catalog = matchedProducts
-      .map(function (p) {
-        return `
-
-ID:${p.id}
-
-الاسم:
-${p.title}
-
-الوصف:
-${p.description}
-
-السعر:
-${p.price}
-
-`;
-      })
-      .join("\n");
-
+  .map(function (p) {
+    return `ID:${p.id} | ${p.title} | ${p.price} ريال | مناسب لـ: ${p.gender} | العمر: ${p.age} | ${p.description}`;
+  })
+  .join("\n");
+    
     const ai = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
 
@@ -950,6 +938,11 @@ ${p.price}
 - اذا سأل العميل عن الاسترجاع او الاتبدال عطيه المعلومات اللي عندك وايضا عطيه الرابط : https://gifts-village.sa/pages/refund-exchange-policy
 - اذا سأل العميل عن صفحة او سياسة الخصوصية عطيه : https://gifts-village.sa/pages/privacy-policy
 - إذا طلب العميل منتجات من قسم معين (مثل بنات، أولاد، سيارات، مواليد)، اعرض فقط منتجات من نفس القسم ولا تخلط بين الأقسام.
+- كل منتج عنده حقل "مناسب لـ" يحدد الجنس (بنت / ولد / الكل) وحقل "العمر" يحدد الفئة العمرية. استخدميهم لتصفية المنتجات قبل الترشيح.
+- إذا قال العميل "بنت" أو "بناتي" أو "هدية بنت": اعرضي فقط المنتجات التي gender = بنت أو الكل.
+- إذا قال "ولد" أو "ابني": اعرضي فقط gender = ولد أو الكل.
+- إذا ذكر عمراً مثل "عمره 3 سنوات": اختاري المنتجات التي تناسب هذا العمر من حقل العمر.
+- لا تعرضي منتجاً جنسه "بنت" لعميل يبحث عن هدية ولد والعكس صحيح.
 
 إذا احتجتِ ترشيح منتجات:
 
