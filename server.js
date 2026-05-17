@@ -412,11 +412,12 @@ async function loadProducts() {
     console.log("✅ PRODUCTS:", products.length);
 
     const documents = products.map((p) => {
-      const pageContent = `الاسم: ${p.title}\nالوصف: ${p.description}\nالسعر: ${p.price}\nالتصنيف: ${p.tags}\nمناسب لـ: ${p.gender}\nالفئة العمرية: ${p.age}`;
-        pageContent: pageContent,
-        metadata: { id: p.id }, // نحتفظ بالـ ID لنجلب المنتج بالكامل لاحقاً
-      });
-    });
+  const pageContent = `الاسم: ${p.title}\nالوصف: ${p.description}\nالسعر: ${p.price}\nالتصنيف: ${p.tags}\nمناسب لـ: ${p.gender}\nالفئة العمرية: ${p.age}`;
+  return new Document({
+    pageContent: pageContent,
+    metadata: { id: p.id },
+  });
+});
 
     // إنشاء الـ Vector Store في الذاكرة
     console.log("⏳ جاري تهيئة نظام البحث الذكي لـ 500 منتج...");
