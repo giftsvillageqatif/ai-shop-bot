@@ -1088,7 +1088,7 @@ ${catalog}
         .map((p) => `${p.title} | ${p.price} ريال | ${p.description}`)
         .join("\n");
 
-      const model = gemini.getGenerativeModel({ model: "gemini-2.0-flash" });
+      const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash-8b" });
       const result = await model.generateContent(
         `أنتِ ياسمين موظفة في متجر قرية الهدايا.
 رد على رسالة العميل باختصار وبشكل طبيعي، واقترحي منتجات مناسبة من القائمة.
