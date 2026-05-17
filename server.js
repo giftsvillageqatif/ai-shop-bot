@@ -951,9 +951,6 @@ ${sanitize(message)}`,
       matchedProducts = products.slice(0, 3);
     }
 
-    throw new Error("TEST: OpenAI down"); // ✅ تست والحين بنحذفه
-
-
     const catalog = matchedProducts
       .map(function (p) {
         return `ID:${p.id} | ${p.title} | ${p.price} ريال | مناسب لـ: ${p.gender} | العمر: ${p.age} | ${p.description}`;
