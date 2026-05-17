@@ -618,7 +618,7 @@ button:hover{background:#c0476d}
   } catch {}
 
   try {
-    convs = await ConversationModel.find().sort({ _id: -1 }).limit(20).lean();
+    convs = await ConversationModel.find().sort({ _id: -1 }).limit(20).lean().maxTimeMS(3000);
   } catch {}
 
   res.send(`<!DOCTYPE html>
@@ -1270,6 +1270,9 @@ if (hasAlreadyReviewedStore) {
   });
 }
 
+    const employeeName =
+      sessions[sessionId]?.handledBy || "ياسمين (الذكاء الاصطناعي)";
+
     const review = {
       rating: rating,
       wrap: req.body.wrap || "no",
@@ -1277,10 +1280,6 @@ if (hasAlreadyReviewedStore) {
       note: note,
       date: dateStr,
     };
-
-    const employeeName =
-      sessions[sessionId]?.handledBy || "ياسمين (الذكاء الاصطناعي)";
-
     await ReviewModel.create({
   ...review,
   employee: employeeName,
