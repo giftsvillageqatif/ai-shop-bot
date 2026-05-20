@@ -270,6 +270,19 @@ bot.on("message", (msg) => {
     return;
   }
 
+  // إرسال صورة من الموظف للعميل عبر تليجرام
+  if (msg.photo && allowedUsers.has(chatId) && employeeSessions[chatId]) {
+    const sessionId = employeeSessions[chatId];
+    const photo = msg.photo[msg.photo.length - 1]; // أكبر دقة
+    bot
+      .getFileLink(photo.file_id)
+      .then((fileUrl) => {
+        io.to(sessionId).emit("human_image_msg", { image: fileUrl });
+      })
+      .catch((err) => console.log("❌ PHOTO FORWARD ERROR:", err.message));
+    return;
+  }
+
   // إرسال الموظف للعميل
   if (
     allowedUsers.has(chatId) &&
@@ -763,6 +776,26 @@ io.on("connection", (socket) => {
     socket.join(sessionId);
     clientSockets[sessionId] = socket.id;
     console.log("✅ CLIENT CONNECTED:", sessionId);
+  });
+
+  // استقبال صورة من العميل وإرسالها للموظف في تليجرام
+  socket.on("user_image", (data) => {
+    const { sessionId, image } = data;
+    if (!sessionId || !supportMode[sessionId]) return;
+
+    const employeeId = Object.keys(employeeSessions).find(
+      (id) => employeeSessions[id] === sessionId,
+    );
+
+    if (employeeId) {
+      const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
+      const buffer = Buffer.from(base64Data, "base64");
+      bot
+        .sendPhoto(Number(employeeId), buffer, {
+          caption: `📸 صورة من العميل ${sessionId}`,
+        })
+        .catch((err) => console.log("❌ IMAGE SEND ERROR:", err.message));
+    }
   });
 
   socket.on("disconnect", () => {
